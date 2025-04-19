@@ -1,0 +1,300 @@
+import React, { useState, useEffect } from 'react';
+import { Container, Typography, Box, Paper, Button, Grid, CircularProgress } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import Navbar from './Navbar';
+
+const ParticipantDashboard = () => {
+    const navigate = useNavigate();
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [attemptedRounds, setAttemptedRounds] = useState({});
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            setLoading(true);
+            const loggedInUser = localStorage.getItem('user');
+            
+            if (loggedInUser) {
+                const parsedUser = JSON.parse(loggedInUser);
+                
+                try {
+                    // First, get the latest user data (with current_round)
+                    const userResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}`);
+                    const updatedUser = userResponse.data;
+                    
+                    // Save the updated user back to localStorage and state
+                    localStorage.setItem('user', JSON.stringify(updatedUser));
+                    setUser(updatedUser);
+                    
+                    // Then get the user's results to check attempted rounds
+                    try {
+                        const resultsResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}/results`);
+                        const results = resultsResponse.data.results;
+                        
+                        // Check which rounds the user has already attempted
+                        const attempted = {};
+                        results.forEach(result => {
+                            attempted[result.round_number] = true;
+                        });
+                        setAttemptedRounds(attempted);
+                    } catch (resultsError) {
+                        console.error('Error fetching user results:', resultsError);
+                        // If results can't be fetched, continue with empty attempted rounds
+                        setAttemptedRounds({});
+                    }
+                    
+                    console.log("Current user round:", updatedUser.current_round);
+                } catch (error) {
+                    console.error('Error fetching updated user data:', error);
+                    // If we can't fetch updated user data, continue with the local one
+                    setUser(parsedUser);
+                }
+            } else {
+                navigate('/login');
+            }
+            
+            setLoading(false);
+        };
+        
+        fetchUserData();
+    }, [navigate]);
+
+    const startRound = (roundNumber) => {
+        // Check if the user has already attempted this round
+        if (attemptedRounds[roundNumber]) {
+            alert(`You have already attempted Round ${roundNumber} and cannot retake it.`);
+            return;
+        }
+        
+        navigate(`/round-${roundNumber}`);
+    };
+
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
+    return (
+        <Box sx={{ 
+            width: '100%',
+            minHeight: '100vh',
+            backgroundColor: 'background.default',
+            display: 'flex',
+            flexDirection: 'column',
+        }}>
+            <Navbar isAdmin={false} />
+            <Box sx={{ 
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                py: 4,
+                width: '100%'
+            }}>
+                <Container 
+                    maxWidth={false}
+                    sx={{ 
+                        width: '100%',
+                        px: { xs: 2, sm: 4, md: 6 }
+                    }}
+                >
+                    <Paper 
+                        elevation={0}
+                        sx={{ 
+                            p: 6,
+                            textAlign: 'center',
+                            backgroundColor: 'background.paper',
+                            borderRadius: 3,
+                            border: '1px solid',
+                            borderColor: 'primary.main',
+                            width: '100%',
+                            mx: 'auto'
+                        }}
+                    >
+                        <Typography 
+                            variant="h3" 
+                            component="h1" 
+                            gutterBottom
+                            sx={{
+                                color: 'primary.main',
+                                fontWeight: 700,
+                                mb: 4
+                            }}
+                        >
+                            Participant Dashboard
+                        </Typography>
+                        <Typography 
+                            variant="h6"
+                            sx={{
+                                color: 'text.secondary',
+                                maxWidth: '1000px',
+                                mx: 'auto',
+                                lineHeight: 1.6,
+                                mb: 6
+                            }}
+                        >
+                            Welcome to your dashboard. Here you can participate in rounds and view your results.
+                        </Typography>
+
+                        <Grid container spacing={4} sx={{ mb: 6 }}>
+                            <Grid item xs={12} md={4}>
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        p: 4,
+                                        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                                        borderRadius: 3,
+                                        border: '1px solid',
+                                        borderColor: 'primary.main',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column'
+                                    }}
+                                >
+                                    <Typography 
+                                        variant="h5" 
+                                        sx={{ 
+                                            color: 'primary.main',
+                                            fontWeight: 600,
+                                            mb: 2
+                                        }}
+                                    >
+                                        Round 1
+                                    </Typography>
+                                    <Typography 
+                                        variant="body1"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            mb: 3,
+                                            flex: 1
+                                        }}
+                                    >
+                                        Multiple choice questions on programming languages. Choose between Python and C.
+                                    </Typography>
+                                    <Button 
+                                        variant="contained"
+                                        fullWidth
+                                        onClick={() => startRound(1)}
+                                        disabled={user && user.current_round < 1 || attemptedRounds[1]}
+                                    >
+                                        {attemptedRounds[1] ? 'Already Attempted' : 'Start Round 1'}
+                                    </Button>
+                                </Paper>
+                            </Grid>
+
+                            <Grid item xs={12} md={4}>
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        p: 4,
+                                        backgroundColor: user && user.current_round >= 2 ? 'rgba(255, 107, 0, 0.1)' : 'rgba(100, 100, 100, 0.1)',
+                                        borderRadius: 3,
+                                        border: '1px solid',
+                                        borderColor: user && user.current_round >= 2 ? 'primary.main' : 'grey.700',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column'
+                                    }}
+                                >
+                                    <Typography 
+                                        variant="h5" 
+                                        sx={{ 
+                                            color: user && user.current_round >= 2 ? 'primary.main' : 'grey.500',
+                                            fontWeight: 600,
+                                            mb: 2
+                                        }}
+                                    >
+                                        Round 2
+                                    </Typography>
+                                    <Typography 
+                                        variant="body1"
+                                        sx={{
+                                            color: user && user.current_round >= 2 ? 'text.secondary' : 'grey.600',
+                                            mb: 3,
+                                            flex: 1
+                                        }}
+                                    >
+                                        Advanced programming challenges. Available after passing Round 1.
+                                    </Typography>
+                                    <Button 
+                                        variant="contained"
+                                        fullWidth
+                                        onClick={() => startRound(2)}
+                                        disabled={!user || user.current_round < 2 || attemptedRounds[2]}
+                                    >
+                                        {attemptedRounds[2] ? 'Already Attempted' : (user && user.current_round >= 2 ? 'Start Round 2' : 'Locked')}
+                                    </Button>
+                                </Paper>
+                            </Grid>
+
+                            <Grid item xs={12} md={4}>
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        p: 4,
+                                        backgroundColor: user && user.current_round >= 3 ? 'rgba(255, 107, 0, 0.1)' : 'rgba(100, 100, 100, 0.1)',
+                                        borderRadius: 3,
+                                        border: '1px solid',
+                                        borderColor: user && user.current_round >= 3 ? 'primary.main' : 'grey.700',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column'
+                                    }}
+                                >
+                                    <Typography 
+                                        variant="h5" 
+                                        sx={{ 
+                                            color: user && user.current_round >= 3 ? 'primary.main' : 'grey.500',
+                                            fontWeight: 600,
+                                            mb: 2
+                                        }}
+                                    >
+                                        Round 3
+                                    </Typography>
+                                    <Typography 
+                                        variant="body1"
+                                        sx={{
+                                            color: user && user.current_round >= 3 ? 'text.secondary' : 'grey.600',
+                                            mb: 3,
+                                            flex: 1
+                                        }}
+                                    >
+                                        Final round with expert-level problems. Available after passing Round 2.
+                                    </Typography>
+                                    <Button 
+                                        variant="contained"
+                                        fullWidth
+                                        onClick={() => startRound(3)}
+                                        disabled={!user || user.current_round < 3 || attemptedRounds[3]}
+                                    >
+                                        {attemptedRounds[3] ? 'Already Attempted' : (user && user.current_round >= 3 ? 'Start Round 3' : 'Locked')}
+                                    </Button>
+                                </Paper>
+                            </Grid>
+                        </Grid>
+
+                        <Button 
+                            variant="outlined"
+                            size="large"
+                            onClick={() => navigate('/participant-results')}
+                            sx={{ 
+                                px: 6, 
+                                py: 1.5, 
+                                fontSize: '1.1rem',
+                                borderWidth: 2
+                            }}
+                        >
+                            View All Results
+                        </Button>
+                    </Paper>
+                </Container>
+            </Box>
+        </Box>
+    );
+};
+
+export default ParticipantDashboard; 

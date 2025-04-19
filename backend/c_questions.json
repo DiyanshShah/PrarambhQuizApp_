@@ -1,0 +1,222 @@
+[
+  {
+    "id": 1,
+    "question": "Who is the father of C programming language?",
+    "options": [
+      "James Gosling",
+      "Dennis Ritchie",
+      "Bjarne Stroustrup",
+      "Guido van Rossum"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 2,
+    "question": "Which of the following is the correct file extension for a C program?",
+    "options": [
+      ".cpp",
+      ".c",
+      ".cs",
+      ".java"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 3,
+    "question": "Which function is the entry point of a C program?",
+    "options": [
+      "start()",
+      "begin()",
+      "main()",
+      "init()"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 4,
+    "question": "Which of the following is used to print output in C?",
+    "options": [
+      "cin",
+      "echo",
+      "print",
+      "printf"
+    ],
+    "correctAnswer": 3
+  },
+  {
+    "id": 5,
+    "question": "Which header file is required for using printf() and scanf()?",
+    "options": [
+      "stdlib.h",
+      "string.h",
+      "stdio.h",
+      "conio.h"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 6,
+    "question": "Which of the following is a valid variable name in C?",
+    "options": [
+      "1value",
+      "_value",
+      "value#",
+      "int"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 7,
+    "question": "What is the correct syntax to declare a pointer in C?",
+    "options": [
+      "int ptr*;",
+      "*int ptr;",
+      "int *ptr;",
+      "ptr int*;"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 8,
+    "question": "Which operator is used to get the address of a variable in C?",
+    "options": [
+      "*",
+      "&",
+      "#",
+      "%"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 9,
+    "question": "Which keyword is used to define a constant in C?",
+    "options": [
+      "static",
+      "fixed",
+      "const",
+      "define"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 10,
+    "question": "What will `sizeof(int)` typically return on a 32-bit system?",
+    "options": [
+      "2",
+      "4",
+      "8",
+      "1"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 11,
+    "question": "Which loop is guaranteed to execute at least once?",
+    "options": [
+      "for",
+      "while",
+      "do-while",
+      "None"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 12,
+    "question": "Which of these is not a valid storage class in C?",
+    "options": [
+      "auto",
+      "register",
+      "static",
+      "final"
+    ],
+    "correctAnswer": 3
+  },
+  {
+    "id": 13,
+    "question": "What is the output format specifier for a float in C?",
+    "options": [
+      "%f",
+      "%c",
+      "%d",
+      "%s"
+    ],
+    "correctAnswer": 0
+  },
+  {
+    "id": 14,
+    "question": "Which function is used to allocate memory dynamically in C?",
+    "options": [
+      "realloc()",
+      "alloc()",
+      "malloc()",
+      "calloc()"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 15,
+    "question": "What is the result of 10 % 3 in C?",
+    "options": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 16,
+    "question": "Which of the following is a ternary operator in C?",
+    "options": [
+      "if-else",
+      "? :",
+      "&&",
+      "||"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 17,
+    "question": "Which of these data types is not standard in C?",
+    "options": [
+      "int",
+      "float",
+      "string",
+      "char"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 18,
+    "question": "Which function is used to read a single character from user input?",
+    "options": [
+      "gets()",
+      "scanf()",
+      "getchar()",
+      "fgets()"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 19,
+    "question": "Which of the following symbols is used for comments in C?",
+    "options": [
+      "// or /* */",
+      "#",
+      "<!-- -->",
+      "--"
+    ],
+    "correctAnswer": 0
+  },
+  {
+    "id": 20,
+    "question": "What does the `break` statement do in a loop?",
+    "options": [
+      "Skips the current iteration",
+      "Terminates the loop",
+      "Restarts the loop",
+      "Pauses the loop"
+    ],
+    "correctAnswer": 1
+  }
+]

@@ -1,0 +1,222 @@
+[
+  {
+    "id": 1,
+    "question": "Who is the creator of Python programming language?",
+    "options": [
+      "Dennis Ritchie",
+      "Bjarne Stroustrup",
+      "Guido van Rossum",
+      "James Gosling"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 2,
+    "question": "Which file extension is used for Python files?",
+    "options": [
+      ".pt",
+      ".py",
+      ".pyt",
+      ".python"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 3,
+    "question": "What is the correct way to output 'Hello World' in Python?",
+    "options": [
+      "echo 'Hello World'",
+      "print('Hello World')",
+      "printf('Hello World')",
+      "cout << 'Hello World'"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 4,
+    "question": "Which of the following is used to define a function in Python?",
+    "options": [
+      "func",
+      "function",
+      "define",
+      "def"
+    ],
+    "correctAnswer": 3
+  },
+  {
+    "id": 5,
+    "question": "What data type is the object below? `x = [1, 2, 3]`",
+    "options": [
+      "Tuple",
+      "Dictionary",
+      "List",
+      "Set"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 6,
+    "question": "Which of the following is **not** a Python data type?",
+    "options": [
+      "list",
+      "int",
+      "real",
+      "tuple"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 7,
+    "question": "What keyword is used to create a class in Python?",
+    "options": [
+      "object",
+      "define",
+      "class",
+      "type"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 8,
+    "question": "Which of these collections defines key-value pairs?",
+    "options": [
+      "list",
+      "tuple",
+      "set",
+      "dictionary"
+    ],
+    "correctAnswer": 3
+  },
+  {
+    "id": 9,
+    "question": "Which operator is used for exponentiation in Python?",
+    "options": [
+      "^",
+      "**",
+      "exp()",
+      "//"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 10,
+    "question": "Which of the following is used to handle exceptions in Python?",
+    "options": [
+      "try/except",
+      "do/catch",
+      "try/catch",
+      "catch/except"
+    ],
+    "correctAnswer": 0
+  },
+  {
+    "id": 11,
+    "question": "How do you start a comment in Python?",
+    "options": [
+      "/*",
+      "#",
+      "//",
+      "<!--"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 12,
+    "question": "What is the output of `len('Python')`?",
+    "options": [
+      "5",
+      "6",
+      "7",
+      "Error"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 13,
+    "question": "Which function is used to get user input in Python 3?",
+    "options": [
+      "cin",
+      "get()",
+      "input()",
+      "scan()"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 14,
+    "question": "What will `type(5.0)` return?",
+    "options": [
+      "int",
+      "float",
+      "double",
+      "number"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 15,
+    "question": "Which of the following is used to import modules in Python?",
+    "options": [
+      "#include",
+      "import",
+      "require",
+      "using"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 16,
+    "question": "Which built-in function returns the largest item in an iterable?",
+    "options": [
+      "large()",
+      "big()",
+      "max()",
+      "top()"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 17,
+    "question": "What will `bool(0)` return?",
+    "options": [
+      "True",
+      "False",
+      "None",
+      "0"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 18,
+    "question": "Which of these methods can be used to add an item to a list?",
+    "options": [
+      "insert()",
+      "append()",
+      "push()",
+      "add()"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 19,
+    "question": "How do you create a virtual environment in Python?",
+    "options": [
+      "python -env create",
+      "virtualenv env",
+      "pip init env",
+      "python -install venv"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 20,
+    "question": "What is the correct file mode to open a file for reading and writing?",
+    "options": [
+      "r",
+      "w+",
+      "rw",
+      "r+"
+    ],
+    "correctAnswer": 3
+  }
+]
