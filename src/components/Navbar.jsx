@@ -76,9 +76,9 @@ const Navbar = ({ isAdmin }) => {
                             Dashboard
                         </NavButton>
                         <NavButton 
-                            onClick={() => navigate(isAdmin ? '/admin-results' : '/participant-results')}
+                            onClick={() => navigate(isAdmin ? '/leaderboard' : '/participant-dashboard')}
                         >
-                            Results
+                            {isAdmin ? 'Leaderboard' : 'Dashboard'}
                         </NavButton>
                     </Box>
                     <Box sx={{ 

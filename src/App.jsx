@@ -5,7 +5,7 @@ import AdminDashboard from './components/AdminDashboard';
 import ParticipantDashboard from './components/ParticipantDashboard';
 import Round1 from './components/Round1';
 import Round2 from './components/Round2';
-import Results from './components/Results';
+import Leaderboard from './components/Leaderboard';
 import { ThemeProvider, createTheme } from '@mui/material';
 import { CssBaseline } from '@mui/material';
 
@@ -111,8 +111,7 @@ function App() {
           <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
           <Route path="/round-1" element={<Round1 />} />
           <Route path="/round-2" element={<Round2 />} />
-          <Route path="/participant-results" element={<Results isAdmin={false} />} />
-          <Route path="/admin-results" element={<Results isAdmin={true} />} />
+          <Route path="/leaderboard" element={<Leaderboard isAdmin={true} />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>

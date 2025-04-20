@@ -73,20 +73,8 @@ with app.app_context():
     )
     db.session.add(admin_user)
     
-    # Also create a test participant user
-    participant_password = generate_password_hash('test')
-    participant_user = User(
-        enrollment_no='test',
-        username='test',
-        password=participant_password,
-        is_admin=False,
-        current_round=2,  # Give access to round 2 for testing
-        registered_at=datetime.utcnow()
-    )
-    db.session.add(participant_user)
-    
     db.session.commit()
-    print("Default users created successfully!")
+    print("Admin user created successfully!")
 
 # Routes
 @app.route('/api/signup', methods=['POST'])
@@ -527,6 +515,110 @@ def debug_set_user_round(user_id, round_number):
 @app.route('/uploads/<path:folder>/<path:filename>')
 def serve_uploads(folder, filename):
     return send_from_directory(os.path.join(UPLOAD_FOLDER, folder), filename)
+
+@app.route('/api/leaderboard', methods=['GET'])
+def get_leaderboard():
+    try:
+        # Get all users who are not admins
+        users = User.query.filter_by(is_admin=False).all()
+        
+        leaderboard_data = []
+        for user in users:
+            # Get all quiz results for this user
+            results = QuizResult.query.filter_by(user_id=user.id).all()
+            
+            # Calculate total score
+            total_score = sum(result.score for result in results)
+            total_questions = sum(result.total_questions for result in results)
+            
+            # Only include users who have attempted at least one quiz
+            if results:
+                leaderboard_data.append({
+                    'user_id': user.id,
+                    'username': user.username,
+                    'enrollment_no': user.enrollment_no,
+                    'total_score': total_score,
+                    'total_questions': total_questions,
+                    'percentage': round((total_score / total_questions * 100), 2) if total_questions > 0 else 0,
+                    'current_round': user.current_round,
+                    'can_proceed_to_round3': user.current_round >= 3
+                })
+        
+        # Sort by total score (highest first)
+        leaderboard_data.sort(key=lambda x: x['total_score'], reverse=True)
+        
+        # Mark top 20 participants for round 3
+        for i, entry in enumerate(leaderboard_data):
+            entry['rank'] = i + 1
+            if i < 20:
+                entry['can_proceed_to_round3'] = True
+        
+        return jsonify({
+            'leaderboard': leaderboard_data,
+            'total_participants': len(leaderboard_data)
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error fetching leaderboard data: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to fetch leaderboard data: {str(e)}'}), 500
+
+@app.route('/api/leaderboard/update-round3', methods=['POST'])
+def update_round3_participants():
+    try:
+        # Only admin should be able to trigger this
+        data = request.get_json()
+        user_id = data.get('user_id')
+        
+        user = User.query.get(user_id)
+        if not user or not user.is_admin:
+            return jsonify({'error': 'Unauthorized access'}), 403
+        
+        # Get all users who are not admins
+        users = User.query.filter_by(is_admin=False).all()
+        
+        # Calculate scores for each user
+        user_scores = []
+        for user in users:
+            results = QuizResult.query.filter_by(user_id=user.id).all()
+            total_score = sum(result.score for result in results)
+            
+            if results:  # Only include users who have attempted at least one quiz
+                user_scores.append({
+                    'user': user,
+                    'total_score': total_score
+                })
+        
+        # Sort by total score (highest first)
+        user_scores.sort(key=lambda x: x['total_score'], reverse=True)
+        
+        # Update top 20 users to have access to round 3
+        updated_users = []
+        for i, entry in enumerate(user_scores):
+            if i < 20:
+                user = entry['user']
+                if user.current_round < 3:
+                    user.current_round = 3
+                    updated_users.append(user.username)
+        
+        # Commit changes
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Successfully updated round 3 participants',
+            'updated_users': updated_users,
+            'total_updated': len(updated_users)
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error updating round 3 participants: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to update round 3 participants: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True) 

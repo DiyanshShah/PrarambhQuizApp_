@@ -853,7 +853,7 @@ const AdminDashboard = () => {
                         <Button 
                             variant="outlined"
                             size="large"
-                            onClick={() => navigate('/admin-results')}
+                            onClick={() => navigate('/leaderboard')}
                             sx={{ 
                                 px: 6, 
                                 py: 1.5, 
@@ -861,7 +861,7 @@ const AdminDashboard = () => {
                                 borderWidth: 2
                             }}
                         >
-                            View Participants Results
+                            View Leaderboard
                         </Button>
                     </Paper>
                 </Container>
