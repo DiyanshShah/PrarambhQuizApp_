@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Typography, Box, Paper, Divider, CircularProgress } from '@mui/material';
+import { 
+  Container, Typography, Box, Paper, Divider, CircularProgress, 
+  Card, CardContent, Chip
+} from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
+import { motion } from 'framer-motion';
+
+// Create animated components
+const MotionContainer = motion(Container);
+const MotionPaper = motion(Paper);
+const MotionCard = motion(Card);
+const MotionBox = motion(Box);
+const MotionTypography = motion(Typography);
 
 const Results = ({ isAdmin }) => {
   const navigate = useNavigate();
@@ -21,6 +32,12 @@ const Results = ({ isAdmin }) => {
     const userObj = JSON.parse(loggedInUser);
     setUser(userObj);
 
+    // Redirect admin users (they should use leaderboard)
+    if (userObj.is_admin && !isAdmin) {
+      navigate('/admin-dashboard');
+      return;
+    }
+
     // Fetch user's quiz results
     const fetchResults = async () => {
       try {
@@ -36,7 +53,7 @@ const Results = ({ isAdmin }) => {
     };
 
     fetchResults();
-  }, [navigate]);
+  }, [navigate, isAdmin]);
 
   // Format date string
   const formatDate = (dateString) => {
@@ -49,6 +66,41 @@ const Results = ({ isAdmin }) => {
       minute: 'numeric',
       hour12: true
     });
+  };
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        when: "beforeChildren",
+        staggerChildren: 0.1,
+        duration: 0.3
+      }
+    }
+  };
+
+  const titleVariants = {
+    hidden: { y: -20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: { duration: 0.6, ease: "easeOut" }
+    }
+  };
+
+  const cardVariants = {
+    hidden: { y: 50, opacity: 0 },
+    visible: i => ({
+      y: 0,
+      opacity: 1,
+      transition: {
+        delay: i * 0.1,
+        duration: 0.5,
+        ease: [0.22, 1, 0.36, 1]
+      }
+    })
   };
 
   if (loading) {
@@ -67,7 +119,7 @@ const Results = ({ isAdmin }) => {
           justifyContent: 'center', 
           alignItems: 'center' 
         }}>
-          <CircularProgress />
+          <CircularProgress sx={{ color: 'primary.main' }} />
         </Box>
       </Box>
     );
@@ -83,20 +135,37 @@ const Results = ({ isAdmin }) => {
     }}>
       <Navbar isAdmin={isAdmin} />
       
-      <Container maxWidth="md" sx={{ mt: 4, flex: 1 }}>
-        <Paper 
+      <MotionContainer 
+        maxWidth="md" 
+        sx={{ mt: 4, flex: 1, pb: 5 }}
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+      >
+        <MotionPaper 
           elevation={0}
           sx={{ 
-            p: 6,
+            p: { xs: 3, md: 6 },
             backgroundColor: 'background.paper',
             borderRadius: 3,
             border: '1px solid',
             borderColor: 'primary.main',
             mx: 'auto',
             width: '100%',
+            overflow: 'hidden',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '4px',
+              background: 'linear-gradient(90deg, rgba(37,99,235,1) 0%, rgba(59,130,246,1) 100%)'
+            }
           }}
         >
-          <Typography 
+          <MotionTypography 
             variant="h4" 
             component="h1" 
             gutterBottom
@@ -104,111 +173,193 @@ const Results = ({ isAdmin }) => {
               color: 'primary.main',
               fontWeight: 700,
               mb: 4,
-              textAlign: 'center'
+              textAlign: 'center',
+              position: 'relative',
+              display: 'inline-block',
+              margin: '0 auto 2rem',
+              left: '50%',
+              transform: 'translateX(-50%)'
             }}
+            variants={titleVariants}
           >
-            Quiz Results
-          </Typography>
+            Your Quiz Results
+            <Box 
+              component="span" 
+              sx={{ 
+                position: 'absolute',
+                bottom: -4,
+                left: '25%',
+                width: '50%',
+                height: '4px',
+                backgroundColor: 'primary.main',
+                borderRadius: '2px'
+              }}
+            />
+          </MotionTypography>
 
           {error && (
-            <Typography 
-              variant="body1" 
-              sx={{ 
-                color: 'error.main', 
-                textAlign: 'center', 
-                my: 3 
-              }}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
             >
-              {error}
-            </Typography>
+              <Box 
+                sx={{ 
+                  color: 'error.main', 
+                  textAlign: 'center', 
+                  my: 3,
+                  p: 2,
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  borderRadius: 2
+                }}
+              >
+                {error}
+              </Box>
+            </motion.div>
           )}
 
           {results.length === 0 && !error ? (
-            <Typography 
-              variant="h6" 
+            <MotionBox
               sx={{ 
                 color: 'text.secondary', 
                 textAlign: 'center', 
-                my: 4 
+                my: 6,
+                p: 4,
+                border: '1px dashed',
+                borderColor: 'divider',
+                borderRadius: 2,
+                backgroundColor: 'rgba(255, 255, 255, 0.03)'
               }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
             >
-              You haven't taken any quizzes yet.
-            </Typography>
+              <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>
+                No Results Yet
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+                You haven't taken any quizzes yet. Complete a round to see your results here.
+              </Typography>
+            </MotionBox>
           ) : (
-            results.map((result, index) => (
-              <Box 
-                key={result.id} 
-                sx={{ 
-                  mb: index < results.length - 1 ? 4 : 0,
-                  pb: index < results.length - 1 ? 4 : 0,
-                  borderBottom: index < results.length - 1 ? '1px solid' : 'none',
-                  borderColor: 'rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography 
-                    variant="h5" 
+            <Box>
+              {results.map((result, index) => (
+                <MotionCard 
+                  key={result.id}
+                  sx={{ 
+                    mb: 3,
+                    backgroundColor: 'background.default',
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    position: 'relative',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-5px)',
+                      boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)'
+                    }
+                  }}
+                  custom={index}
+                  variants={cardVariants}
+                  whileHover={{ y: -5 }}
+                >
+                  <Box 
                     sx={{ 
-                      color: 'text.primary',
-                      fontWeight: 600
+                      height: '6px', 
+                      width: '100%', 
+                      backgroundColor: result.passed ? 'success.main' : 'error.main',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0
                     }}
-                  >
-                    Round {result.round_number}
-                  </Typography>
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 1,
-                    bgcolor: result.passed ? 'success.dark' : 'error.dark',
-                    px: 2,
-                    py: 0.5,
-                    borderRadius: 2
-                  }}>
-                    <Typography variant="body2" sx={{ color: 'white', fontWeight: 'bold' }}>
-                      {result.passed ? 'PASSED' : 'FAILED'}
-                    </Typography>
-                  </Box>
-                </Box>
-                
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 2 }}>
-                  <Box>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Language
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 500 }}>
-                      {result.language ? (result.language.charAt(0).toUpperCase() + result.language.slice(1)) : 'N/A'}
-                    </Typography>
-                  </Box>
-                  
-                  <Box>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Score
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 500 }}>
-                      {result.score}/{result.total_questions} ({Math.round((result.score / result.total_questions) * 100)}%)
-                    </Typography>
-                  </Box>
-                  
-                  <Box>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Completed on
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 500 }}>
-                      {formatDate(result.completed_at)}
-                    </Typography>
-                  </Box>
-                </Box>
+                  />
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Typography 
+                        variant="h5" 
+                        sx={{ 
+                          color: 'text.primary',
+                          fontWeight: 700
+                        }}
+                      >
+                        {result.round_number === 1 ? 'Round 1' : 
+                         result.round_number === 2 ? 'Round 2' : 'Round 3'}
+                        {result.language && (
+                          <Typography 
+                            component="span"
+                            sx={{ 
+                              ml: 1, 
+                              color: 'primary.light',
+                              fontSize: '0.9rem',
+                              fontWeight: 600,
+                              textTransform: 'capitalize'
+                            }}
+                          >
+                            ({result.language})
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Chip
+                        label={result.passed ? 'PASSED' : 'FAILED'}
+                        color={result.passed ? 'success' : 'error'}
+                        size="small"
+                        sx={{ 
+                          fontWeight: 'bold',
+                          px: 1,
+                          '& .MuiChip-label': { px: 1 }
+                        }}
+                      />
+                    </Box>
+                    
+                    <Box 
+                      sx={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)', 
+                        borderRadius: 2,
+                        p: 2,
+                        mb: 2
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 2, md: 4 } }}>
+                        <Box>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                            Score
+                          </Typography>
+                          <Typography variant="h6" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                            {result.score}/{result.total_questions} <Typography component="span" sx={{ fontSize: '0.9rem', color: 'text.secondary' }}>
+                              ({Math.round((result.score / result.total_questions) * 100)}%)
+                            </Typography>
+                          </Typography>
+                        </Box>
+                        
+                        <Box>
+                          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                            Completed on
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 500 }}>
+                            {formatDate(result.completed_at)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
 
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
-                  {result.passed 
-                    ? "Congratulations! You've passed this round." 
-                    : "You need to score at least 50% to pass this round."}
-                </Typography>
-              </Box>
-            ))
+                    <Typography variant="body2" sx={{ 
+                      color: result.passed ? 'success.main' : 'text.secondary', 
+                      fontWeight: result.passed ? 600 : 400,
+                      mt: 2 
+                    }}>
+                      {result.passed 
+                        ? "Congratulations! You've passed this round and unlocked the next one." 
+                        : "You need to score at least 50% to pass this round and advance."}
+                    </Typography>
+                  </CardContent>
+                </MotionCard>
+              ))}
+            </Box>
           )}
-        </Paper>
-      </Container>
+        </MotionPaper>
+      </MotionContainer>
     </Box>
   );
 };

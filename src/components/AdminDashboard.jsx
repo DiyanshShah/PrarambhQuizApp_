@@ -7,6 +7,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from './Navbar';
+import { motion } from 'framer-motion';
+
+// Create animated components
+const MotionPaper = motion(Paper);
+const MotionBox = motion(Box);
+const MotionGrid = motion(Grid);
+const MotionTypography = motion(Typography);
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -234,6 +241,58 @@ const AdminDashboard = () => {
         setSnackbar({...snackbar, open: false});
     };
 
+    // Animation variants
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                when: "beforeChildren",
+                staggerChildren: 0.1,
+                duration: 0.5
+            }
+        }
+    };
+
+    const titleVariants = {
+        hidden: { y: -20, opacity: 0 },
+        visible: {
+            y: 0,
+            opacity: 1,
+            transition: { duration: 0.6, ease: "easeOut" }
+        }
+    };
+
+    const cardVariants = {
+        hidden: { y: 50, opacity: 0 },
+        visible: i => ({
+            y: 0,
+            opacity: 1,
+            transition: {
+                delay: i * 0.1,
+                duration: 0.6,
+                ease: [0.22, 1, 0.36, 1]
+            }
+        })
+    };
+
+    const buttonVariants = {
+        hidden: { scale: 0.9, opacity: 0 },
+        visible: {
+            scale: 1,
+            opacity: 1,
+            transition: { delay: 0.4, duration: 0.5 }
+        },
+        tap: {
+            scale: 0.95,
+            transition: { duration: 0.1 }
+        },
+        hover: {
+            scale: 1.05,
+            transition: { duration: 0.3 }
+        }
+    };
+
     return (
         <Box sx={{ 
             width: '100%',
@@ -257,8 +316,12 @@ const AdminDashboard = () => {
                         width: '100%',
                         px: { xs: 2, sm: 4, md: 6 }
                     }}
+                    component={motion.div}
+                    initial="hidden"
+                    animate="visible"
+                    variants={containerVariants}
                 >
-                    <Paper 
+                    <MotionPaper 
                         elevation={0}
                         sx={{ 
                             p: 6,
@@ -268,36 +331,74 @@ const AdminDashboard = () => {
                             border: '1px solid',
                             borderColor: 'primary.main',
                             width: '100%',
-                            mx: 'auto'
+                            mx: 'auto',
+                            overflow: 'hidden',
+                            position: 'relative',
+                            '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '4px',
+                                background: 'linear-gradient(90deg, rgba(37,99,235,1) 0%, rgba(59,130,246,1) 100%)',
+                            }
                         }}
                     >
-                        <Typography 
+                        <MotionTypography 
                             variant="h3" 
                             component="h1" 
                             gutterBottom
                             sx={{
                                 color: 'primary.main',
                                 fontWeight: 700,
-                                mb: 4
+                                mb: 4,
+                                position: 'relative',
+                                display: 'inline-block'
                             }}
+                            variants={titleVariants}
                         >
                             Admin Dashboard
-                        </Typography>
+                            <Box 
+                                component="span" 
+                                sx={{ 
+                                    position: 'absolute',
+                                    bottom: -4,
+                                    left: '25%',
+                                    width: '50%',
+                                    height: '4px',
+                                    backgroundColor: 'primary.main',
+                                    borderRadius: '2px'
+                                }}
+                            />
+                        </MotionTypography>
                         
-                        <Grid container spacing={4} sx={{ mb: 6 }}>
-                            <Grid item xs={12} md={4}>
-                                <Paper
+                        <MotionGrid container spacing={4} sx={{ mb: 6 }}>
+                            <MotionGrid 
+                                item xs={12} md={4}
+                                custom={0}
+                                variants={cardVariants}
+                            >
+                                <MotionPaper
                                     elevation={0}
                                     sx={{
                                         p: 4,
-                                        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
                                         borderRadius: 3,
                                         border: '1px solid',
                                         borderColor: 'primary.main',
                                         height: '100%',
                                         display: 'flex',
-                                        flexDirection: 'column'
+                                        flexDirection: 'column',
+                                        position: 'relative',
+                                        overflow: 'hidden',
+                                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-5px)',
+                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)',
+                                        }
                                     }}
+                                    whileHover={{ y: -5 }}
                                 >
                                     <Typography 
                                         variant="h5" 
@@ -326,25 +427,38 @@ const AdminDashboard = () => {
                                             setShowQuestionForm(!showQuestionForm);
                                             setShowRound2QuestionForm(false);
                                         }}
+                                        component={motion.button}
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
                                     >
                                         {showQuestionForm ? 'Hide Question Form' : 'Add Questions'}
                                     </Button>
-                                </Paper>
-                            </Grid>
+                                </MotionPaper>
+                            </MotionGrid>
                             
-                            <Grid item xs={12} md={4}>
-                                <Paper
+                            <MotionGrid 
+                                item xs={12} md={4}
+                                custom={1}
+                                variants={cardVariants}
+                            >
+                                <MotionPaper
                                     elevation={0}
                                     sx={{
                                         p: 4,
-                                        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
                                         borderRadius: 3,
                                         border: '1px solid',
                                         borderColor: 'primary.main',
                                         height: '100%',
                                         display: 'flex',
-                                        flexDirection: 'column'
+                                        flexDirection: 'column',
+                                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-5px)',
+                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)',
+                                        }
                                     }}
+                                    whileHover={{ y: -5 }}
                                 >
                                     <Typography 
                                         variant="h5" 
@@ -373,14 +487,21 @@ const AdminDashboard = () => {
                                             setShowRound2QuestionForm(!showRound2QuestionForm);
                                             setShowQuestionForm(false);
                                         }}
+                                        component={motion.button}
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
                                     >
                                         {showRound2QuestionForm ? 'Hide Question Form' : 'Add Questions'}
                                     </Button>
-                                </Paper>
-                            </Grid>
+                                </MotionPaper>
+                            </MotionGrid>
                             
-                            <Grid item xs={12} md={4}>
-                                <Paper
+                            <MotionGrid 
+                                item xs={12} md={4}
+                                custom={2}
+                                variants={cardVariants}
+                            >
+                                <MotionPaper
                                     elevation={0}
                                     sx={{
                                         p: 4,
@@ -390,7 +511,8 @@ const AdminDashboard = () => {
                                         borderColor: 'grey.700',
                                         height: '100%',
                                         display: 'flex',
-                                        flexDirection: 'column'
+                                        flexDirection: 'column',
+                                        transition: 'transform 0.3s ease'
                                     }}
                                 >
                                     <Typography 
@@ -420,9 +542,9 @@ const AdminDashboard = () => {
                                     >
                                         Coming Soon
                                     </Button>
-                                </Paper>
-                            </Grid>
-                        </Grid>
+                                </MotionPaper>
+                            </MotionGrid>
+                        </MotionGrid>
                         
                         {/* Round 1 Question Form */}
                         {showQuestionForm && (
@@ -850,20 +972,42 @@ const AdminDashboard = () => {
                             </Paper>
                         )}
                         
-                        <Button 
-                            variant="outlined"
-                            size="large"
-                            onClick={() => navigate('/leaderboard')}
-                            sx={{ 
-                                px: 6, 
-                                py: 1.5, 
-                                fontSize: '1.1rem',
-                                borderWidth: 2
-                            }}
+                        <motion.div
+                            variants={buttonVariants}
+                            whileHover="hover"
+                            whileTap="tap"
                         >
-                            View Leaderboard
-                        </Button>
-                    </Paper>
+                            <Button 
+                                variant="outlined"
+                                size="large"
+                                onClick={() => navigate('/leaderboard')}
+                                sx={{ 
+                                    px: 6, 
+                                    py: 1.5, 
+                                    fontSize: '1.1rem',
+                                    borderWidth: 2,
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    '&::before': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        width: '100%',
+                                        height: '100%',
+                                        background: 'rgba(37, 99, 235, 0.1)',
+                                        transform: 'translateX(-100%)',
+                                        transition: 'transform 0.4s ease',
+                                    },
+                                    '&:hover::before': {
+                                        transform: 'translateX(0)',
+                                    }
+                                }}
+                            >
+                                View Leaderboard
+                            </Button>
+                        </motion.div>
+                    </MotionPaper>
                 </Container>
             </Box>
             
