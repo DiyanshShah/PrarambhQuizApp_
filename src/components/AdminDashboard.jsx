@@ -20,6 +20,7 @@ const AdminDashboard = () => {
     const [user, setUser] = useState(null);
     const [showQuestionForm, setShowQuestionForm] = useState(false);
     const [showRound2QuestionForm, setShowRound2QuestionForm] = useState(false);
+    const [showRound3Submissions, setShowRound3Submissions] = useState(false);
     
     // Form states for Round 1
     const [language, setLanguage] = useState('');
@@ -44,6 +45,12 @@ const AdminDashboard = () => {
         message: '',
         severity: 'success'
     });
+    
+    // New states for Round 3
+    const [round3Submissions, setRound3Submissions] = useState([]);
+    const [selectedSubmission, setSelectedSubmission] = useState(null);
+    const [submissionScore, setSubmissionScore] = useState(0);
+    const [isSubmissionScoring, setIsSubmissionScoring] = useState(false);
     
     useEffect(() => {
         // Check if user is logged in and is admin
@@ -293,6 +300,67 @@ const AdminDashboard = () => {
         }
     };
 
+    const fetchRound3Submissions = async () => {
+        try {
+            const response = await axios.get('http://localhost:5000/api/admin/round3-submissions');
+            setRound3Submissions(response.data.submissions);
+        } catch (error) {
+            console.error('Error fetching Round 3 submissions:', error);
+            setSnackbar({
+                open: true,
+                message: 'Failed to fetch Round 3 submissions',
+                severity: 'error'
+            });
+        }
+    };
+
+    const viewSubmission = (submission) => {
+        setSelectedSubmission(submission);
+    };
+
+    const handleSubmissionScoreChange = (event) => {
+        // Only allow +4 or -1 as values
+        const value = parseInt(event.target.value);
+        if (value === 4 || value === -1) {
+            setSubmissionScore(value);
+        }
+    };
+
+    const submitScore = async (submissionId) => {
+        setIsSubmissionScoring(true);
+        try {
+            await axios.post(`http://localhost:5000/api/admin/score-round3`, {
+                submissionId,
+                score: submissionScore
+            });
+            
+            // Update local state
+            setRound3Submissions(
+                round3Submissions.map(sub => 
+                    sub.id === submissionId ? {...sub, score: submissionScore, scored: true} : sub
+                )
+            );
+            
+            setSnackbar({
+                open: true,
+                message: 'Submission scored successfully!',
+                severity: 'success'
+            });
+            
+            // Reset selection
+            setSelectedSubmission(null);
+        } catch (error) {
+            console.error('Error scoring submission:', error);
+            setSnackbar({
+                open: true,
+                message: 'Failed to score submission',
+                severity: 'error'
+            });
+        } finally {
+            setIsSubmissionScoring(false);
+        }
+    };
+
     return (
         <Box sx={{ 
             width: '100%',
@@ -505,20 +573,25 @@ const AdminDashboard = () => {
                                     elevation={0}
                                     sx={{
                                         p: 4,
-                                        backgroundColor: 'rgba(100, 100, 100, 0.1)',
+                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
                                         borderRadius: 3,
                                         border: '1px solid',
-                                        borderColor: 'grey.700',
+                                        borderColor: 'primary.main',
                                         height: '100%',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        transition: 'transform 0.3s ease'
+                                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-5px)',
+                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)',
+                                        }
                                     }}
+                                    whileHover={{ y: -5 }}
                                 >
                                     <Typography 
                                         variant="h5" 
                                         sx={{ 
-                                            color: 'grey.500',
+                                            color: 'primary.main',
                                             fontWeight: 600,
                                             mb: 2
                                         }}
@@ -528,19 +601,29 @@ const AdminDashboard = () => {
                                     <Typography 
                                         variant="body1"
                                         sx={{
-                                            color: 'grey.600',
+                                            color: 'text.secondary',
                                             mb: 3,
                                             flex: 1
                                         }}
                                     >
-                                        Manage Round 3 questions. (Coming soon)
+                                        Review and manually score Round 3 submissions for DSA and Web Development tracks.
                                     </Typography>
                                     <Button 
                                         variant="contained"
                                         fullWidth
-                                        disabled
+                                        onClick={() => {
+                                            setShowRound3Submissions(!showRound3Submissions);
+                                            setShowQuestionForm(false);
+                                            setShowRound2QuestionForm(false);
+                                            if (!showRound3Submissions) {
+                                                fetchRound3Submissions();
+                                            }
+                                        }}
+                                        component={motion.button}
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
                                     >
-                                        Coming Soon
+                                        {showRound3Submissions ? 'Hide Submissions' : 'View Submissions'}
                                     </Button>
                                 </MotionPaper>
                             </MotionGrid>
@@ -969,6 +1052,211 @@ const AdminDashboard = () => {
                                         </Grid>
                                     </Grid>
                                 </form>
+                            </Paper>
+                        )}
+                        
+                        {/* Round 3 Submissions */}
+                        {showRound3Submissions && (
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    p: 4,
+                                    backgroundColor: 'rgba(26, 26, 46, 0.8)',
+                                    borderRadius: 3,
+                                    border: '1px solid',
+                                    borderColor: 'primary.main',
+                                    mb: 4
+                                }}
+                            >
+                                <Typography 
+                                    variant="h5" 
+                                    sx={{ 
+                                        color: 'primary.main',
+                                        fontWeight: 600,
+                                        mb: 3,
+                                        textAlign: 'center'
+                                    }}
+                                >
+                                    Round 3 Submissions
+                                </Typography>
+                                
+                                {round3Submissions.length === 0 ? (
+                                    <Typography variant="body1" sx={{ textAlign: 'center', color: 'text.secondary' }}>
+                                        No submissions found for Round 3.
+                                    </Typography>
+                                ) : (
+                                    <>
+                                        <Grid container spacing={3}>
+                                            <Grid item xs={12} md={6}>
+                                                <Typography variant="h6" sx={{ mb: 2, color: 'primary.light' }}>
+                                                    Submission List
+                                                </Typography>
+                                                <Paper 
+                                                    elevation={0}
+                                                    sx={{ 
+                                                        maxHeight: '500px', 
+                                                        overflow: 'auto',
+                                                        bgcolor: 'background.paper',
+                                                        borderRadius: 2
+                                                    }}
+                                                >
+                                                    {round3Submissions.map((submission) => (
+                                                        <Box
+                                                            key={submission.id}
+                                                            sx={{
+                                                                p: 2,
+                                                                borderBottom: '1px solid',
+                                                                borderColor: 'divider',
+                                                                cursor: 'pointer',
+                                                                '&:hover': {
+                                                                    bgcolor: 'action.hover'
+                                                                },
+                                                                ...(selectedSubmission?.id === submission.id && {
+                                                                    bgcolor: 'action.selected'
+                                                                })
+                                                            }}
+                                                            onClick={() => viewSubmission(submission)}
+                                                        >
+                                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                <Typography variant="subtitle1" fontWeight={600}>
+                                                                    {submission.username} - {submission.track_type}
+                                                                </Typography>
+                                                                {submission.scored ? (
+                                                                    <Box 
+                                                                        sx={{ 
+                                                                            px: 1.5, 
+                                                                            py: 0.5, 
+                                                                            borderRadius: 10, 
+                                                                            bgcolor: submission.score > 0 ? 'success.main' : 'error.main',
+                                                                            color: 'white',
+                                                                            fontSize: '0.8rem',
+                                                                            fontWeight: 'bold'
+                                                                        }}
+                                                                    >
+                                                                        {submission.score > 0 ? '+4' : '-1'}
+                                                                    </Box>
+                                                                ) : (
+                                                                    <Box 
+                                                                        sx={{ 
+                                                                            px: 1.5, 
+                                                                            py: 0.5, 
+                                                                            borderRadius: 10, 
+                                                                            bgcolor: 'warning.main',
+                                                                            color: 'text.primary',
+                                                                            fontSize: '0.8rem',
+                                                                            fontWeight: 'bold'
+                                                                        }}
+                                                                    >
+                                                                        Pending
+                                                                    </Box>
+                                                                )}
+                                                            </Box>
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                Submitted: {new Date(submission.submitted_at).toLocaleString()}
+                                                            </Typography>
+                                                        </Box>
+                                                    ))}
+                                                </Paper>
+                                            </Grid>
+                                            
+                                            <Grid item xs={12} md={6}>
+                                                {selectedSubmission ? (
+                                                    <Box>
+                                                        <Typography variant="h6" sx={{ mb: 2, color: 'primary.light' }}>
+                                                            Submission Details
+                                                        </Typography>
+                                                        <Paper 
+                                                            elevation={0}
+                                                            sx={{ 
+                                                                p: 3, 
+                                                                borderRadius: 2,
+                                                                bgcolor: 'background.paper',
+                                                                mb: 3
+                                                            }}
+                                                        >
+                                                            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                                                                {selectedSubmission.username} - {selectedSubmission.track_type}
+                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                                Challenge: {selectedSubmission.challenge_name}
+                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                                Submitted: {new Date(selectedSubmission.submitted_at).toLocaleString()}
+                                                            </Typography>
+                                                            
+                                                            <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>
+                                                                Code Submission:
+                                                            </Typography>
+                                                            <Paper 
+                                                                sx={{ 
+                                                                    p: 2, 
+                                                                    bgcolor: '#1e1e1e', 
+                                                                    borderRadius: 1,
+                                                                    maxHeight: '300px',
+                                                                    overflow: 'auto'
+                                                                }}
+                                                            >
+                                                                <Typography 
+                                                                    variant="body2" 
+                                                                    component="pre" 
+                                                                    sx={{ 
+                                                                        color: '#d4d4d4',
+                                                                        fontFamily: '"Consolas", "Monaco", "Courier New", monospace',
+                                                                        fontSize: '0.875rem',
+                                                                        whiteSpace: 'pre-wrap',
+                                                                        wordBreak: 'break-all'
+                                                                    }}
+                                                                >
+                                                                    {selectedSubmission.code}
+                                                                </Typography>
+                                                            </Paper>
+                                                            
+                                                            {!selectedSubmission.scored && (
+                                                                <Box sx={{ mt: 3 }}>
+                                                                    <Typography variant="subtitle1" gutterBottom>
+                                                                        Score this submission:
+                                                                    </Typography>
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                                        <FormControl component="fieldset">
+                                                                            <RadioGroup
+                                                                                row
+                                                                                value={submissionScore}
+                                                                                onChange={handleSubmissionScoreChange}
+                                                                            >
+                                                                                <FormControlLabel
+                                                                                    value={4}
+                                                                                    control={<Radio />}
+                                                                                    label="Correct (+4)"
+                                                                                />
+                                                                                <FormControlLabel
+                                                                                    value={-1}
+                                                                                    control={<Radio />}
+                                                                                    label="Incorrect (-1)"
+                                                                                />
+                                                                            </RadioGroup>
+                                                                        </FormControl>
+                                                                        <Button
+                                                                            variant="contained"
+                                                                            color="primary"
+                                                                            onClick={() => submitScore(selectedSubmission.id)}
+                                                                            disabled={isSubmissionScoring}
+                                                                        >
+                                                                            {isSubmissionScoring ? 'Submitting...' : 'Submit Score'}
+                                                                        </Button>
+                                                                    </Box>
+                                                                </Box>
+                                                            )}
+                                                        </Paper>
+                                                    </Box>
+                                                ) : (
+                                                    <Typography variant="body1" sx={{ textAlign: 'center', color: 'text.secondary', mt: 8 }}>
+                                                        Select a submission from the list to view details
+                                                    </Typography>
+                                                )}
+                                            </Grid>
+                                        </Grid>
+                                    </>
+                                )}
                             </Paper>
                         )}
                         

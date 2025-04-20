@@ -5,6 +5,10 @@ import AdminDashboard from './components/AdminDashboard';
 import ParticipantDashboard from './components/ParticipantDashboard';
 import Round1 from './components/Round1';
 import Round2 from './components/Round2';
+import Round3 from './components/Round3';
+import Round3Selection from './components/Round3Selection';
+import Round3DSA from './components/Round3DSA';
+import Round3Web from './components/Round3Web';
 import Leaderboard from './components/Leaderboard';
 import Results from './components/Results';
 import { ThemeProvider, createTheme } from '@mui/material';
@@ -174,6 +178,11 @@ function App() {
           <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
           <Route path="/round-1" element={<Round1 />} />
           <Route path="/round-2" element={<Round2 />} />
+          <Route path="/round-3" element={<Round3 />} />
+          <Route path="/round3" element={<Round3Selection />} />
+          <Route path="/round3/dsa/:problemId" element={<Round3DSA />} />
+          <Route path="/round3/dsa" element={<Navigate to="/round3/dsa/1" replace />} />
+          <Route path="/round3/web" element={<Round3Web />} />
           <Route path="/leaderboard" element={<Leaderboard isAdmin={true} />} />
           <Route path="/participant-results" element={<Results isAdmin={false} />} />
           <Route path="/" element={<Navigate to="/login" replace />} />

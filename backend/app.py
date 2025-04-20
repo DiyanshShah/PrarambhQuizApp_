@@ -34,6 +34,7 @@ class User(db.Model):
     password = db.Column(db.String(120), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     current_round = db.Column(db.Integer, default=1)
+    round3_track = db.Column(db.String(10), nullable=True)  # 'dsa' or 'web'
     registered_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship with QuizResult
@@ -54,6 +55,22 @@ class QuizResult(db.Model):
 
     def __repr__(self):
         return f'<QuizResult {self.user_id}-{self.round_number}>'
+
+# Create a model for Round 3 submissions
+class Round3Submission(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    challenge_id = db.Column(db.Integer, nullable=False)
+    track_type = db.Column(db.String(10), nullable=False)  # 'dsa' or 'web'
+    challenge_name = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.Text, nullable=False)
+    language = db.Column(db.String(20), nullable=True)  # For DSA track
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    scored = db.Column(db.Boolean, default=False)
+    score = db.Column(db.Integer, nullable=True)
+
+    def __repr__(self):
+        return f'<Round3Submission {self.user_id}-{self.track_type}-{self.challenge_id}>'
 
 # Create database tables and admin user
 with app.app_context():
@@ -118,6 +135,7 @@ def login():
             'enrollment_no': user.enrollment_no,
             'is_admin': user.is_admin,
             'current_round': user.current_round,
+            'round3_track': user.round3_track,
             'registered_at': user.registered_at.isoformat() if user.registered_at else None
         }
     })
@@ -187,6 +205,7 @@ def save_quiz_result():
             'enrollment_no': user.enrollment_no,
             'is_admin': user.is_admin,
             'current_round': user.current_round,
+            'round3_track': user.round3_track,
             'registered_at': user.registered_at.isoformat() if user.registered_at else None
         }
         
@@ -444,6 +463,77 @@ def get_round2_questions():
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to fetch Round 2 questions: {str(e)}'}), 500
 
+@app.route('/api/admin/questions/round3', methods=['POST'])
+def add_round3_question():
+    # Get the question data from the request
+    data = request.get_json()
+    
+    # Validate request data
+    if not data or not isinstance(data, dict):
+        return jsonify({'error': 'Invalid request data'}), 400
+    
+    required_fields = ['question', 'options', 'correctAnswer']
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': f'Missing required fields. Required: {", ".join(required_fields)}'}), 400
+    
+    # Validate options array
+    if not isinstance(data['options'], list) or len(data['options']) < 2:
+        return jsonify({'error': 'options must be an array with at least 2 items'}), 400
+    
+    # Validate correctAnswer is a valid index
+    if not isinstance(data['correctAnswer'], int) or data['correctAnswer'] < 0 or data['correctAnswer'] >= len(data['options']):
+        return jsonify({'error': 'correctAnswer must be a valid index into the options array'}), 400
+    
+    try:
+        file_path = os.path.join(os.path.dirname(__file__), 'round3_questions.json')
+        
+        questions = []
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as file:
+                questions = json.load(file)
+        
+        # Add the new question
+        questions.append(data)
+        
+        # Save back to the file
+        with open(file_path, 'w') as file:
+            json.dump(questions, file, indent=2)
+        
+        return jsonify({'message': 'Round 3 question added successfully', 'total_questions': len(questions)}), 201
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error adding Round 3 question: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to add Round 3 question: {str(e)}'}), 500
+
+@app.route('/api/admin/questions/round3', methods=['GET'])
+def get_round3_questions():
+    try:
+        file_path = os.path.join(os.path.dirname(__file__), 'round3_questions.json')
+        
+        print(f"Trying to access file: {file_path}")
+        print(f"File exists: {os.path.exists(file_path)}")
+        
+        if not os.path.exists(file_path):
+            print("File not found, returning empty array")
+            return jsonify([]), 200
+        
+        with open(file_path, 'r') as file:
+            questions = json.load(file)
+        
+        print(f"Successfully loaded {len(questions)} questions from round3_questions.json")
+        return jsonify(questions), 200
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error fetching Round 3 questions: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        print(f"File path attempted: {file_path}")
+        return jsonify({'error': f'Failed to fetch Round 3 questions: {str(e)}'}), 500
+
 @app.route('/api/admin/questions/<language>', methods=['GET'])
 def get_questions(language):
     # Validate language parameter
@@ -482,11 +572,13 @@ def get_user(user_id):
         'enrollment_no': user.enrollment_no,
         'is_admin': user.is_admin,
         'current_round': user.current_round,
+        'round3_track': user.round3_track,
         'registered_at': user.registered_at.isoformat() if user.registered_at else None
     })
 
 @app.route('/api/debug/set_user_round/<int:user_id>/<int:round_number>', methods=['GET'])
-def debug_set_user_round(user_id, round_number):
+@app.route('/api/debug/set_user_round/<int:user_id>/<int:round_number>/<string:track>', methods=['GET'])
+def debug_set_user_round(user_id, round_number, track=None):
     # This is a debug endpoint for development only
     # Should be removed or protected in production
     
@@ -497,16 +589,23 @@ def debug_set_user_round(user_id, round_number):
     
     # Update user's round
     user.current_round = round_number
+    
+    # Update track if provided and valid
+    if track and round_number == 3:
+        if track in ['dsa', 'web']:
+            user.round3_track = track
+    
     db.session.commit()
     
     return jsonify({
-        'message': f'User {user.username} round updated to {round_number}',
+        'message': f'User {user.username} round updated to {round_number}' + (f' with track {track}' if track else ''),
         'user': {
             'id': user.id,
             'username': user.username,
             'enrollment_no': user.enrollment_no,
             'is_admin': user.is_admin,
             'current_round': user.current_round,
+            'round3_track': user.round3_track,
             'registered_at': user.registered_at.isoformat() if user.registered_at else None
         }
     })
@@ -619,6 +718,311 @@ def update_round3_participants():
         print(f"Error updating round 3 participants: {str(e)}")
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to update round 3 participants: {str(e)}'}), 500
+
+@app.route('/api/round3/submit-dsa', methods=['POST'])
+def submit_dsa_solution():
+    data = request.get_json()
+    
+    try:
+        user_id = data.get('user_id')
+        challenge_id = data.get('challenge_id')
+        challenge_name = data.get('challenge_name')
+        code = data.get('code')
+        language = data.get('language')
+        
+        # Validate required fields
+        if not all([user_id, challenge_id, challenge_name, code, language]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Check if user exists
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        # Check if user has already submitted this challenge
+        existing_submission = Round3Submission.query.filter_by(
+            user_id=user_id,
+            challenge_id=challenge_id,
+            track_type='dsa'
+        ).first()
+        
+        if existing_submission:
+            # Update existing submission
+            existing_submission.code = code
+            existing_submission.language = language
+            existing_submission.submitted_at = datetime.utcnow()
+            existing_submission.scored = False
+            existing_submission.score = None
+            
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'DSA solution updated successfully',
+                'submission_id': existing_submission.id
+            }), 200
+        else:
+            # Create new submission
+            new_submission = Round3Submission(
+                user_id=user_id,
+                challenge_id=challenge_id,
+                track_type='dsa',
+                challenge_name=challenge_name,
+                code=code,
+                language=language,
+                submitted_at=datetime.utcnow()
+            )
+            
+            db.session.add(new_submission)
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'DSA solution submitted successfully',
+                'submission_id': new_submission.id
+            }), 201
+            
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error submitting DSA solution: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to submit DSA solution: {str(e)}'}), 500
+
+@app.route('/api/round3/submit-web', methods=['POST'])
+def submit_web_solution():
+    data = request.get_json()
+    
+    try:
+        user_id = data.get('user_id')
+        challenge_id = data.get('challenge_id')
+        challenge_name = data.get('challenge_name')
+        html_code = data.get('html_code')
+        css_code = data.get('css_code')
+        js_code = data.get('js_code')
+        
+        # Validate required fields
+        if not all([user_id, challenge_id, challenge_name, html_code, css_code]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Check if user exists
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        # Combine code for storage
+        full_code = f"<-- HTML -->\n{html_code}\n\n<-- CSS -->\n{css_code}\n\n<-- JavaScript -->\n{js_code or '// No JavaScript'}"
+        
+        # Check if user has already submitted this challenge
+        existing_submission = Round3Submission.query.filter_by(
+            user_id=user_id,
+            challenge_id=challenge_id,
+            track_type='web'
+        ).first()
+        
+        if existing_submission:
+            # Update existing submission
+            existing_submission.code = full_code
+            existing_submission.submitted_at = datetime.utcnow()
+            existing_submission.scored = False
+            existing_submission.score = None
+            
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'Web solution updated successfully',
+                'submission_id': existing_submission.id,
+                'success': True
+            }), 200
+        else:
+            # Create new submission
+            new_submission = Round3Submission(
+                user_id=user_id,
+                challenge_id=challenge_id,
+                track_type='web',
+                challenge_name=challenge_name,
+                code=full_code,
+                submitted_at=datetime.utcnow()
+            )
+            
+            db.session.add(new_submission)
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'Web solution submitted successfully',
+                'submission_id': new_submission.id,
+                'success': True
+            }), 201
+            
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error submitting web solution: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to submit web solution: {str(e)}', 'success': False}), 500
+
+@app.route('/api/admin/round3-submissions', methods=['GET'])
+def get_round3_submissions():
+    try:
+        # Verify the user is an admin (should be part of authentication middleware)
+        # For simplicity, we'll assume the request is coming from an admin
+        
+        # Get all Round 3 submissions with user information
+        submissions = db.session.query(
+            Round3Submission, User.username
+        ).join(
+            User, Round3Submission.user_id == User.id
+        ).all()
+        
+        submission_list = []
+        for submission, username in submissions:
+            submission_data = {
+                'id': submission.id,
+                'user_id': submission.user_id,
+                'username': username,
+                'track_type': submission.track_type,
+                'challenge_id': submission.challenge_id,
+                'challenge_name': submission.challenge_name,
+                'code': submission.code,
+                'language': submission.language,
+                'submitted_at': submission.submitted_at.isoformat(),
+                'scored': submission.scored,
+                'score': submission.score
+            }
+            submission_list.append(submission_data)
+        
+        return jsonify({'submissions': submission_list}), 200
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error fetching Round 3 submissions: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to fetch Round 3 submissions: {str(e)}'}), 500
+
+@app.route('/api/admin/score-round3', methods=['POST'])
+def score_round3_submission():
+    data = request.get_json()
+    
+    try:
+        submission_id = data.get('submissionId')
+        score = data.get('score')
+        
+        # Validate inputs
+        if submission_id is None or score is None:
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        if score not in [4, -1]:
+            return jsonify({'error': 'Score must be either 4 or -1'}), 400
+            
+        # Find the submission
+        submission = Round3Submission.query.get(submission_id)
+        if not submission:
+            return jsonify({'error': 'Submission not found'}), 404
+            
+        # Update submission score
+        submission.score = score
+        submission.scored = True
+        
+        # Add the score to the user's quiz results
+        # Create a new QuizResult entry for this round 3 submission
+        existing_result = QuizResult.query.filter_by(
+            user_id=submission.user_id,
+            round_number=3
+        ).first()
+        
+        if existing_result:
+            # Update existing result
+            existing_result.score += score
+            if score > 0:
+                existing_result.total_questions += 1
+        else:
+            # Create new result
+            total_questions = 1 if score > 0 else 0
+            new_result = QuizResult(
+                user_id=submission.user_id,
+                round_number=3,
+                language='',  # Round 3 doesn't use language
+                score=score,
+                total_questions=total_questions,
+                completed_at=datetime.utcnow()
+            )
+            db.session.add(new_result)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Submission scored successfully',
+            'submission_id': submission_id,
+            'score': score
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error scoring Round 3 submission: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to score submission: {str(e)}'}), 500
+
+@app.route('/api/user/set-round3-track', methods=['POST'])
+def set_round3_track():
+    data = request.get_json()
+    
+    try:
+        user_id = data.get('user_id')
+        track = data.get('track')
+        
+        # Validate inputs
+        if user_id is None or track is None:
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        if track not in ['dsa', 'web']:
+            return jsonify({'error': 'Invalid track. Must be "dsa" or "web"'}), 400
+            
+        # Find the user
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        # Check if user has access to Round 3
+        if user.current_round < 3:
+            return jsonify({'error': 'User does not have access to Round 3'}), 403
+            
+        # Check if user has already made submissions in the other track
+        other_track = 'web' if track == 'dsa' else 'dsa'
+        existing_submissions = Round3Submission.query.filter_by(
+            user_id=user_id,
+            track_type=other_track
+        ).first()
+        
+        if existing_submissions:
+            return jsonify({'error': f'User has already made submissions in the {other_track} track'}), 400
+            
+        # Update user's track preference
+        user.round3_track = track
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Round 3 track set to {track}',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'enrollment_no': user.enrollment_no,
+                'is_admin': user.is_admin,
+                'current_round': user.current_round,
+                'round3_track': user.round3_track,
+                'registered_at': user.registered_at.isoformat() if user.registered_at else None
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error setting Round 3 track: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to set Round 3 track: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True) 

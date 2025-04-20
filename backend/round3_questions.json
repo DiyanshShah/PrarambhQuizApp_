@@ -1,0 +1,107 @@
+[
+  {
+    "question": "What is the time complexity of the following algorithm to find the nth Fibonacci number using dynamic programming?",
+    "code": "function fibonacci(n) {\n  const dp = new Array(n + 1);\n  dp[0] = 0;\n  dp[1] = 1;\n  \n  for (let i = 2; i <= n; i++) {\n    dp[i] = dp[i - 1] + dp[i - 2];\n  }\n  \n  return dp[n];\n}",
+    "options": [
+      "O(n²)",
+      "O(n)",
+      "O(log n)",
+      "O(2ⁿ)"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "question": "Which data structure would be most efficient for implementing a system that needs to frequently find the minimum and maximum values as well as add and remove elements?",
+    "options": [
+      "Array",
+      "Min-Max Heap",
+      "Balanced Binary Search Tree",
+      "Hash Table"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the output of the following code?",
+    "code": "class A {\n  constructor() {\n    this.value = 1;\n  }\n  \n  get() {\n    return this.value;\n  }\n}\n\nclass B extends A {\n  constructor() {\n    super();\n    this.value = 2;\n  }\n  \n  get() {\n    return super.get() + this.value;\n  }\n}\n\nconst b = new B();\nconsole.log(b.get());",
+    "options": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "question": "In a distributed system, what consistency model guarantees that all reads will return the most recent write?",
+    "options": [
+      "Eventual Consistency",
+      "Causal Consistency", 
+      "Strong Consistency",
+      "Weak Consistency"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the main purpose of using Virtual DOM in React?",
+    "options": [
+      "To save memory by not rendering elements directly to the DOM",
+      "To improve security by isolating DOM operations",
+      "To optimize performance by minimizing actual DOM manipulations",
+      "To enable server-side rendering of components"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "question": "Which design pattern does the following code implement?",
+    "code": "class Singleton {\n  static instance;\n  \n  constructor() {\n    if (Singleton.instance) {\n      return Singleton.instance;\n    }\n    \n    Singleton.instance = this;\n    this.data = [];\n  }\n  \n  static getInstance() {\n    if (!Singleton.instance) {\n      Singleton.instance = new Singleton();\n    }\n    return Singleton.instance;\n  }\n}",
+    "options": [
+      "Factory Method",
+      "Observer",
+      "Singleton",
+      "Decorator"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the space complexity of the following recursive algorithm for calculating factorial?",
+    "code": "function factorial(n) {\n  if (n <= 1) return 1;\n  return n * factorial(n - 1);\n}",
+    "options": [
+      "O(1)",
+      "O(n)",
+      "O(log n)",
+      "O(n²)"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "question": "Which sorting algorithm would be most efficient for sorting an array that is already almost sorted?",
+    "options": [
+      "Quick Sort",
+      "Merge Sort",
+      "Insertion Sort",
+      "Heap Sort"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the output of this code that uses closures?",
+    "code": "function createFunctions() {\n  const funcs = [];\n  \n  for (var i = 0; i < 3; i++) {\n    funcs.push(function() {\n      return i;\n    });\n  }\n  \n  return funcs;\n}\n\nconst functions = createFunctions();\nconsole.log(functions[0](), functions[1](), functions[2]());",
+    "options": [
+      "0, 1, 2",
+      "3, 3, 3",
+      "0, 0, 0",
+      "undefined, undefined, undefined"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "question": "When implementing a REST API, which HTTP method is most appropriate for updating a resource?",
+    "options": [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE"
+    ],
+    "correctAnswer": 2
+  }
+] 

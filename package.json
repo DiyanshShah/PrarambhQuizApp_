@@ -10,10 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-javascript": "^6.2.3",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@monaco-editor/react": "^4.7.0",
     "@mui/material": "^7.0.2",
+    "@uiw/react-codemirror": "^4.23.10",
     "axios": "^1.8.4",
+    "axios-mock-adapter": "^2.1.0",
     "framer-motion": "^12.7.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
