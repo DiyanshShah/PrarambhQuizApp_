@@ -24,6 +24,7 @@ const Round1 = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
   const [penaltyPoints, setPenaltyPoints] = useState(0);
+  const [roundAccessPollingInterval, setRoundAccessPollingInterval] = useState(null);
   
   const totalQuestions = 20;
   const gracePeriod = 5 * 60; // 5 minutes in seconds
@@ -38,6 +39,45 @@ const Round1 = () => {
       navigate('/login');
     }
   }, [navigate]);
+
+  // Check if round is still accessible - poll every 15 seconds
+  useEffect(() => {
+    // Only check round access during active quiz
+    if (step === 'quiz') {
+      // Initial check
+      checkRoundAccess();
+      
+      // Set up polling interval
+      const interval = setInterval(checkRoundAccess, 15000); // Check every 15 seconds
+      setRoundAccessPollingInterval(interval);
+      
+      // Clean up
+      return () => {
+        clearInterval(interval);
+      };
+    } else if (roundAccessPollingInterval) {
+      // Clean up if we're not in quiz mode
+      clearInterval(roundAccessPollingInterval);
+    }
+  }, [step]);
+
+  // Function to check if round is still accessible
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/round-access?round_number=1');
+      
+      // If round is closed during the quiz, auto-submit
+      if (!response.data.is_open && step === 'quiz') {
+        console.log('Round 1 closed by admin, auto-submitting...');
+        setDialogMessage('This round has been closed by the admin. Your answers are being submitted automatically.');
+        setDialogOpen(true);
+        await submitResults(true); // Pass true to indicate it's an auto-submit
+      }
+    } catch (error) {
+      console.error('Error checking round access:', error);
+      // Don't disrupt the quiz if checking fails
+    }
+  };
 
   // Load questions based on selected language
   useEffect(() => {
@@ -129,11 +169,17 @@ const Round1 = () => {
   };
 
   // Submit quiz results to backend
-  const submitResults = async () => {
+  const submitResults = async (isAutoSubmit = false) => {
     try {
       // Clear timer if it's running
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      
+      // Clear round access polling if it's running
+      if (roundAccessPollingInterval) {
+        clearInterval(roundAccessPollingInterval);
+        setRoundAccessPollingInterval(null);
       }
       
       // Calculate score
@@ -155,7 +201,8 @@ const Round1 = () => {
         score: finalScore,
         total_questions: totalQuestions,
         time_taken: (20 * 60) - timeLeft, // In seconds
-        penalty: penaltyPoints
+        penalty: penaltyPoints,
+        auto_submitted: isAutoSubmit
       });
 
       const response = await axios.post('http://localhost:5000/api/quiz/result', {
@@ -163,7 +210,8 @@ const Round1 = () => {
         round_number: 1,
         language: selectedLanguage,
         score: finalScore,
-        total_questions: totalQuestions
+        total_questions: totalQuestions,
+        auto_submitted: isAutoSubmit
       });
 
       console.log("Round 1 results submitted successfully:", response.data);
@@ -174,12 +222,20 @@ const Round1 = () => {
         setUser(response.data.updated_user);
       }
 
-      setStep('results');
-      setScore(finalScore);
-      setDialogMessage(`Quiz completed! Your raw score: ${totalScore}/${totalQuestions}
-                        Penalty: -${penaltyPoints}
-                        Final Score: ${finalScore}/${totalQuestions}`);
-      setDialogOpen(true);
+      if (isAutoSubmit) {
+        // If auto-submitted due to round closure, redirect to dashboard
+        setTimeout(() => {
+          navigate('/participant-dashboard');
+        }, 3000);
+      } else {
+        // Normal submission
+        setStep('results');
+        setScore(finalScore);
+        setDialogMessage(`Quiz completed! Your raw score: ${totalScore}/${totalQuestions}
+                          Penalty: -${penaltyPoints}
+                          Final Score: ${finalScore}/${totalQuestions}`);
+        setDialogOpen(true);
+      }
     } catch (error) {
       console.error('Error submitting results:', error);
       
@@ -197,7 +253,15 @@ const Round1 = () => {
       }
       
       setDialogOpen(true);
-      setStep('language-select');
+      
+      if (isAutoSubmit) {
+        // If auto-submit failed, still redirect to dashboard
+        setTimeout(() => {
+          navigate('/participant-dashboard');
+        }, 3000);
+      } else {
+        setStep('language-select');
+      }
     }
   };
 

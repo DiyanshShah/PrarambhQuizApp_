@@ -246,6 +246,9 @@ const Round3Web = () => {
     message: '',
     severity: 'info'
   });
+  const [completedChallenges, setCompletedChallenges] = useState([]);
+  const [roundAccessPollingInterval, setRoundAccessPollingInterval] = useState(null);
+  const [dialogMessage, setDialogMessage] = useState("You've completed all web challenges in Round 3! Your solution has been submitted for review.");
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -284,7 +287,39 @@ const Round3Web = () => {
     }
 
     setCurrentUser(parsedUser);
-    selectChallenge(0);
+    
+    // Check for completed challenges
+    const checkCompletedChallenges = async () => {
+      try {
+        const response = await axios.get(`http://localhost:5000/api/round3/submissions?user_id=${parsedUser.id}&track_type=web`);
+        if (response.data && response.data.submissions) {
+          const completed = response.data.submissions.map(sub => parseInt(sub.challenge_id));
+          setCompletedChallenges(completed);
+          
+          // Check if all challenges are completed
+          if (completed.length === webChallenges.length && completed.length > 0) {
+            setOpenDialog(true);
+          } else if (completed.length > 0) {
+            // Find the first uncompleted challenge
+            for (let i = 0; i < webChallenges.length; i++) {
+              if (!completed.includes(webChallenges[i].id)) {
+                selectChallenge(i);
+                break;
+              }
+            }
+          } else {
+            selectChallenge(0);
+          }
+        } else {
+          selectChallenge(0);
+        }
+      } catch (error) {
+        console.error('Error fetching completed challenges:', error);
+        selectChallenge(0);
+      }
+    };
+    
+    checkCompletedChallenges();
     setLoading(false);
   }, [navigate]);
 
@@ -328,7 +363,54 @@ const Round3Web = () => {
     setTimeout(updatePreview, 100); // Ensure iframe has loaded before updating content
   };
 
-  const handleSubmit = async () => {
+  // Check if round is still accessible - poll every 15 seconds
+  useEffect(() => {
+    // Only start polling after loading and when a challenge is selected
+    if (!loading && currentChallenge !== null) {
+      // Initial check
+      checkRoundAccess();
+      
+      // Set up polling interval
+      const interval = setInterval(checkRoundAccess, 15000); // Check every 15 seconds
+      setRoundAccessPollingInterval(interval);
+      
+      // Clean up
+      return () => {
+        clearInterval(interval);
+      };
+    }
+    
+    return () => {
+      if (roundAccessPollingInterval) {
+        clearInterval(roundAccessPollingInterval);
+      }
+    };
+  }, [loading, currentChallenge]);
+
+  // Function to check if round is still accessible
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/round-access?round_number=3');
+      
+      // If round is closed during the challenge, auto-submit
+      if (!response.data.is_open && !loading && currentChallenge !== null) {
+        console.log('Round 3 closed by admin, auto-submitting...');
+        setDialogMessage('This round has been closed by the admin. Your current solution is being submitted automatically.');
+        // Auto-submit the current challenge
+        await handleSubmitChallenge(true);
+        setOpenDialog(true);
+        // Redirect to dashboard after showing the message
+        setTimeout(() => {
+          navigate('/participant-dashboard');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error checking round access:', error);
+      // Don't disrupt the challenge if checking fails
+    }
+  };
+
+  const handleSubmit = async (isAutoSubmit = false) => {
     if (!htmlCode.trim() || !cssCode.trim()) {
       setSnackbar({
         open: true,
@@ -344,20 +426,39 @@ const Round3Web = () => {
       const challenge = webChallenges[currentChallenge];
       const result = await submitChallenge(challenge.id, htmlCode, cssCode, jsCode);
       
-      setSnackbar({
-        open: true,
-        message: result.message,
-        severity: result.success ? 'success' : 'error'
-      });
-
-      // If this was the last challenge and it was successful, show completion dialog
-      if (result.success && currentChallenge === webChallenges.length - 1) {
-        setOpenDialog(true);
-      } else if (result.success) {
-        // Move to next challenge if successful
-        setTimeout(() => {
-          selectChallenge(currentChallenge + 1);
-        }, 1500);
+      if (result.success) {
+        // If this was an auto-submit due to round closure
+        if (isAutoSubmit) {
+          setSnackbar({
+            open: true,
+            message: 'Round closed by admin. Your solution has been automatically submitted.',
+            severity: 'info'
+          });
+        } else {
+          // Regular submission success message
+          setSnackbar({
+            open: true,
+            message: result.message,
+            severity: 'success'
+          });
+          
+          // Clear the round access polling interval since we've completed the challenge
+          if (roundAccessPollingInterval) {
+            clearInterval(roundAccessPollingInterval);
+            setRoundAccessPollingInterval(null);
+          }
+          
+          // Add the challenge to completed challenges
+          setCompletedChallenges([...completedChallenges, challenge.id]);
+          // Show completion dialog
+          setOpenDialog(true);
+        }
+      } else {
+        setSnackbar({
+          open: true,
+          message: result.message,
+          severity: 'error'
+        });
       }
     } catch (error) {
       setSnackbar({
@@ -378,8 +479,8 @@ const Round3Web = () => {
     refreshPreview();
   };
 
-  const handleSubmitChallenge = async () => {
-    await handleSubmit();
+  const handleSubmitChallenge = async (isAutoSubmit = false) => {
+    await handleSubmit(isAutoSubmit);
   };
 
   // Auto-update preview on code changes with debounce
@@ -393,6 +494,21 @@ const Round3Web = () => {
     
     return () => clearTimeout(timer);
   }, [htmlCode, cssCode, jsCode]);
+
+  const handleDialogClose = () => {
+    setOpenDialog(false);
+    
+    // If we've completed all challenges, redirect to dashboard
+    if (completedChallenges.length === webChallenges.length) {
+      // Clear the round access polling interval
+      if (roundAccessPollingInterval) {
+        clearInterval(roundAccessPollingInterval);
+        setRoundAccessPollingInterval(null);
+      }
+      
+      navigate('/participant-dashboard');
+    }
+  };
 
   if (loading) {
     return (
@@ -413,10 +529,10 @@ const Round3Web = () => {
       <Container maxWidth="xl" sx={{ pt: 4, pb: 8 }}>
         <Button 
           variant="outlined" 
-          onClick={() => navigate('/round3')}
+          onClick={() => navigate('/participant-dashboard')}
           sx={{ mb: 3 }}
         >
-          ← Back to Selection
+          ← Back to Dashboard
         </Button>
         
         {/* Question Section with Scrolling */}
@@ -524,7 +640,7 @@ const Round3Web = () => {
               </Button>
               <Button 
                 variant="contained" 
-                onClick={handleSubmitChallenge}
+                onClick={() => handleSubmitChallenge(false)}
                 disabled={submitting}
                 size="small"
                 sx={{
@@ -698,36 +814,43 @@ const Round3Web = () => {
         </Paper>
       </Container>
       
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={6000} 
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-      
+      {/* Dialog for completion */}
       <Dialog
         open={openDialog}
-        onClose={() => setOpenDialog(false)}
+        onClose={handleDialogClose}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
       >
-        <DialogTitle>Congratulations!</DialogTitle>
+        <DialogTitle id="alert-dialog-title">
+          {dialogMessage}
+        </DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            You've completed all web development challenges in Round 3! Your score has been recorded.
+          <DialogContentText id="alert-dialog-description">
+            {dialogMessage}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setOpenDialog(false);
-            navigate('/round3');
-          }} color="primary" autoFocus>
-            Return to Round 3
+          <Button onClick={handleDialogClose} color="primary" autoFocus>
+            Return to Dashboard
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity} 
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

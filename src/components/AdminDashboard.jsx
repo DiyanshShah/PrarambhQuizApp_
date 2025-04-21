@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Paper, TextField, Button, 
   FormControl, InputLabel, Select, MenuItem, Grid, 
-  FormHelperText, Snackbar, Alert, RadioGroup, Radio, FormControlLabel 
+  FormHelperText, Snackbar, Alert, RadioGroup, Radio, FormControlLabel,
+  Switch, FormGroup, CircularProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -10,10 +11,10 @@ import Navbar from './Navbar';
 import { motion } from 'framer-motion';
 
 // Create animated components
-const MotionPaper = motion(Paper);
-const MotionBox = motion(Box);
-const MotionGrid = motion(Grid);
-const MotionTypography = motion(Typography);
+const MotionPaper = motion.create(Paper);
+const MotionBox = motion.create(Box);
+const MotionGrid = motion.create(Grid);
+const MotionTypography = motion.create(Typography);
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -21,6 +22,9 @@ const AdminDashboard = () => {
     const [showQuestionForm, setShowQuestionForm] = useState(false);
     const [showRound2QuestionForm, setShowRound2QuestionForm] = useState(false);
     const [showRound3Submissions, setShowRound3Submissions] = useState(false);
+    const [showRoundAccess, setShowRoundAccess] = useState(false);
+    const [roundAccess, setRoundAccess] = useState([]);
+    const [isTogglingAccess, setIsTogglingAccess] = useState(false);
     
     // Form states for Round 1
     const [language, setLanguage] = useState('');
@@ -66,6 +70,40 @@ const AdminDashboard = () => {
             navigate('/login');
         }
     }, [navigate]);
+    
+    useEffect(() => {
+        // Initialize round access controls if they don't exist
+        const initializeRoundAccess = async () => {
+            try {
+                const response = await axios.get('http://localhost:5000/api/round-access');
+                // If we get here, the endpoint exists and returned data
+                console.log("Round access initialized:", response.data);
+            } catch (error) {
+                // If we get a 404, the round access controls might not be initialized
+                console.error("Error checking round access:", error);
+                
+                // If the user is admin, trigger initialization by toggling a round
+                if (user && user.is_admin) {
+                    try {
+                        // Create default access controls by toggling round 1
+                        await axios.post('http://localhost:5000/api/admin/round-access', {
+                            user_id: user.id,
+                            round_number: 1,
+                            is_open: false
+                        });
+                        console.log("Round access controls initialized");
+                    } catch (initError) {
+                        console.error("Failed to initialize round access:", initError);
+                    }
+                }
+            }
+        };
+        
+        // Run once when user is loaded
+        if (user && user.is_admin) {
+            initializeRoundAccess();
+        }
+    }, [user]);
     
     const handleOptionChange = (index, value) => {
         const newOptions = [...options];
@@ -361,6 +399,75 @@ const AdminDashboard = () => {
         }
     };
 
+    const fetchRoundAccess = async () => {
+        try {
+            console.log("Fetching round access...");
+            const response = await axios.get('http://localhost:5000/api/round-access');
+            console.log("Round access data:", response.data);
+            
+            if (response.data && response.data.rounds) {
+                setRoundAccess(response.data.rounds);
+            } else {
+                // If we don't get the expected format, create default data
+                setRoundAccess([
+                    { round_number: 1, is_open: false, last_updated: new Date().toISOString() },
+                    { round_number: 2, is_open: false, last_updated: new Date().toISOString() },
+                    { round_number: 3, is_open: false, last_updated: new Date().toISOString() }
+                ]);
+            }
+        } catch (error) {
+            console.error('Error fetching round access:', error);
+            
+            // If the API fails, create default data
+            setRoundAccess([
+                { round_number: 1, is_open: false, last_updated: new Date().toISOString() },
+                { round_number: 2, is_open: false, last_updated: new Date().toISOString() },
+                { round_number: 3, is_open: false, last_updated: new Date().toISOString() }
+            ]);
+            
+            setSnackbar({
+                open: true,
+                message: 'Failed to fetch round access status. Using default values.',
+                severity: 'error'
+            });
+        }
+    };
+
+    const toggleRoundAccess = async (roundNumber, isOpen) => {
+        if (!user) return;
+        
+        setIsTogglingAccess(true);
+        try {
+            await axios.post('http://localhost:5000/api/admin/round-access', {
+                user_id: user.id,
+                round_number: roundNumber,
+                is_open: isOpen
+            });
+            
+            // Update local state
+            setRoundAccess(roundAccess.map(round => 
+                round.round_number === roundNumber 
+                    ? { ...round, is_open: isOpen } 
+                    : round
+            ));
+            
+            setSnackbar({
+                open: true,
+                message: `Round ${roundNumber} is now ${isOpen ? 'open' : 'closed'}`,
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error toggling round access:', error);
+            setSnackbar({
+                open: true,
+                message: 'Failed to update round access',
+                severity: 'error'
+            });
+        } finally {
+            setIsTogglingAccess(false);
+        }
+    };
+
     return (
         <Box sx={{ 
             width: '100%',
@@ -443,7 +550,7 @@ const AdminDashboard = () => {
                         
                         <MotionGrid container spacing={4} sx={{ mb: 6 }}>
                             <MotionGrid 
-                                item xs={12} md={4}
+                                item xs={12} md={3}
                                 custom={0}
                                 variants={cardVariants}
                             >
@@ -494,6 +601,8 @@ const AdminDashboard = () => {
                                         onClick={() => {
                                             setShowQuestionForm(!showQuestionForm);
                                             setShowRound2QuestionForm(false);
+                                            setShowRound3Submissions(false);
+                                            setShowRoundAccess(false);
                                         }}
                                         component={motion.button}
                                         whileHover={{ scale: 1.03 }}
@@ -505,7 +614,7 @@ const AdminDashboard = () => {
                             </MotionGrid>
                             
                             <MotionGrid 
-                                item xs={12} md={4}
+                                item xs={12} md={3}
                                 custom={1}
                                 variants={cardVariants}
                             >
@@ -554,6 +663,8 @@ const AdminDashboard = () => {
                                         onClick={() => {
                                             setShowRound2QuestionForm(!showRound2QuestionForm);
                                             setShowQuestionForm(false);
+                                            setShowRound3Submissions(false);
+                                            setShowRoundAccess(false);
                                         }}
                                         component={motion.button}
                                         whileHover={{ scale: 1.03 }}
@@ -565,7 +676,7 @@ const AdminDashboard = () => {
                             </MotionGrid>
                             
                             <MotionGrid 
-                                item xs={12} md={4}
+                                item xs={12} md={3}
                                 custom={2}
                                 variants={cardVariants}
                             >
@@ -615,6 +726,7 @@ const AdminDashboard = () => {
                                             setShowRound3Submissions(!showRound3Submissions);
                                             setShowQuestionForm(false);
                                             setShowRound2QuestionForm(false);
+                                            setShowRoundAccess(false);
                                             if (!showRound3Submissions) {
                                                 fetchRound3Submissions();
                                             }
@@ -624,6 +736,71 @@ const AdminDashboard = () => {
                                         whileTap={{ scale: 0.97 }}
                                     >
                                         {showRound3Submissions ? 'Hide Submissions' : 'View Submissions'}
+                                    </Button>
+                                </MotionPaper>
+                            </MotionGrid>
+                            
+                            <MotionGrid 
+                                item xs={12} md={3}
+                                custom={3}
+                                variants={cardVariants}
+                            >
+                                <MotionPaper
+                                    elevation={0}
+                                    sx={{
+                                        p: 4,
+                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                        borderRadius: 3,
+                                        border: '1px solid',
+                                        borderColor: 'primary.main',
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-5px)',
+                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)',
+                                        }
+                                    }}
+                                    whileHover={{ y: -5 }}
+                                >
+                                    <Typography 
+                                        variant="h5" 
+                                        sx={{ 
+                                            color: 'primary.main',
+                                            fontWeight: 600,
+                                            mb: 2
+                                        }}
+                                    >
+                                        Round Access
+                                    </Typography>
+                                    <Typography 
+                                        variant="body1"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            mb: 3,
+                                            flex: 1
+                                        }}
+                                    >
+                                        Control access to each round. Toggle rounds open or closed for all participants.
+                                    </Typography>
+                                    <Button 
+                                        variant="contained"
+                                        fullWidth
+                                        onClick={() => {
+                                            setShowRoundAccess(!showRoundAccess);
+                                            setShowQuestionForm(false);
+                                            setShowRound2QuestionForm(false);
+                                            setShowRound3Submissions(false);
+                                            if (!showRoundAccess) {
+                                                fetchRoundAccess();
+                                            }
+                                        }}
+                                        component={motion.button}
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
+                                    >
+                                        {showRoundAccess ? 'Hide Access Control' : 'Manage Round Access'}
                                     </Button>
                                 </MotionPaper>
                             </MotionGrid>
@@ -1256,6 +1433,101 @@ const AdminDashboard = () => {
                                             </Grid>
                                         </Grid>
                                     </>
+                                )}
+                            </Paper>
+                        )}
+                        
+                        {/* New Round Access Control section */}
+                        {showRoundAccess && (
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    p: 4,
+                                    backgroundColor: 'rgba(26, 26, 46, 0.8)',
+                                    borderRadius: 3,
+                                    border: '1px solid',
+                                    borderColor: 'primary.main',
+                                    mb: 4,
+                                    textAlign: 'left'
+                                }}
+                            >
+                                <Typography 
+                                    variant="h5" 
+                                    sx={{ 
+                                        color: 'primary.main',
+                                        fontWeight: 600,
+                                        mb: 3,
+                                        textAlign: 'center'
+                                    }}
+                                >
+                                    Round Access Control
+                                </Typography>
+                                
+                                {roundAccess.length === 0 ? (
+                                    <Box sx={{ textAlign: 'center', py: 3 }}>
+                                        <CircularProgress />
+                                        <Typography sx={{ mt: 2, color: 'text.secondary' }}>
+                                            Loading round access status...
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <Grid container spacing={3}>
+                                        {roundAccess.map((round) => (
+                                            <Grid item xs={12} md={4} key={round.round_number}>
+                                                <Paper
+                                                    elevation={0}
+                                                    sx={{
+                                                        p: 3,
+                                                        backgroundColor: round.is_open 
+                                                            ? 'rgba(16, 185, 129, 0.1)' 
+                                                            : 'rgba(239, 68, 68, 0.1)',
+                                                        borderRadius: 2,
+                                                        border: '1px solid',
+                                                        borderColor: round.is_open 
+                                                            ? 'success.main' 
+                                                            : 'error.main',
+                                                    }}
+                                                >
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                                        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                                                            Round {round.round_number}
+                                                        </Typography>
+                                                        <Box 
+                                                            sx={{ 
+                                                                px: 2, 
+                                                                py: 0.5, 
+                                                                borderRadius: 10, 
+                                                                bgcolor: round.is_open ? 'success.main' : 'error.main',
+                                                                color: 'white',
+                                                                fontWeight: 'bold'
+                                                            }}
+                                                        >
+                                                            {round.is_open ? 'OPEN' : 'CLOSED'}
+                                                        </Box>
+                                                    </Box>
+                                                    
+                                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                                                        Last updated: {new Date(round.last_updated).toLocaleString()}
+                                                    </Typography>
+                                                    
+                                                    <FormGroup>
+                                                        <FormControlLabel
+                                                            control={
+                                                                <Switch 
+                                                                    checked={round.is_open}
+                                                                    onChange={() => toggleRoundAccess(round.round_number, !round.is_open)}
+                                                                    disabled={isTogglingAccess}
+                                                                    color="success"
+                                                                />
+                                                            }
+                                                            label={round.is_open ? "Set to Closed" : "Set to Open"}
+                                                            sx={{ color: 'text.primary' }}
+                                                        />
+                                                    </FormGroup>
+                                                </Paper>
+                                            </Grid>
+                                        ))}
+                                    </Grid>
                                 )}
                             </Paper>
                         )}

@@ -22,6 +22,8 @@ const Leaderboard = ({ isAdmin }) => {
     message: '',
     severity: 'success'
   });
+  const [totalParticipants, setTotalParticipants] = useState(0);
+  const [isAdminView, setIsAdminView] = useState(false);
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -85,13 +87,25 @@ const Leaderboard = ({ isAdmin }) => {
   };
 
   const fetchLeaderboard = async () => {
+    setLoading(true);
+    
     try {
-      setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/leaderboard');
+      // Get the logged-in user to check if they are an admin
+      const loggedInUser = JSON.parse(localStorage.getItem('user'));
+      
+      // Fetch leaderboard data
+      const response = await axios.get('http://localhost:5000/api/leaderboard', {
+        params: {
+          requesting_user_id: loggedInUser ? loggedInUser.id : null
+        }
+      });
+      
       setLeaderboardData(response.data.leaderboard || []);
+      setTotalParticipants(response.data.total_participants || 0);
+      setIsAdminView(response.data.is_admin_view || false);
       setLoading(false);
-    } catch (err) {
-      console.error('Error fetching leaderboard:', err);
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
       setError('Failed to load leaderboard data. Please try again later.');
       setLoading(false);
     }
@@ -165,7 +179,7 @@ const Leaderboard = ({ isAdmin }) => {
           <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box>
               <Typography variant="subtitle1" sx={{ color: 'text.secondary', mb: 1 }}>
-                Total Participants: {leaderboardData.length}
+                Total Participants: {totalParticipants}
               </Typography>
               <Typography variant="body1" sx={{ color: 'text.secondary' }}>
                 Top 20 participants will proceed to Round 3.
@@ -265,7 +279,7 @@ const Leaderboard = ({ isAdmin }) => {
           <TablePagination
             rowsPerPageOptions={[5, 10, 25, 50]}
             component="div"
-            count={leaderboardData.length}
+            count={totalParticipants}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}

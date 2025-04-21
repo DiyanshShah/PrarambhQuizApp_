@@ -9,11 +9,11 @@ import Navbar from './Navbar';
 import { motion } from 'framer-motion';
 
 // Create animated components
-const MotionContainer = motion(Container);
-const MotionPaper = motion(Paper);
-const MotionCard = motion(Card);
-const MotionBox = motion(Box);
-const MotionTypography = motion(Typography);
+const MotionContainer = motion.create(Container);
+const MotionPaper = motion.create(Paper);
+const MotionCard = motion.create(Card);
+const MotionBox = motion.create(Box);
+const MotionTypography = motion.create(Typography);
 
 const Results = ({ isAdmin }) => {
   const navigate = useNavigate();
@@ -42,7 +42,11 @@ const Results = ({ isAdmin }) => {
     const fetchResults = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`http://localhost:5000/api/user/${userObj.id}/results`);
+        const response = await axios.get(`http://localhost:5000/api/user/${userObj.id}/results`, {
+          params: {
+            requesting_user_id: userObj.id
+          }
+        });
         setResults(response.data.results || []);
         setLoading(false);
       } catch (err) {

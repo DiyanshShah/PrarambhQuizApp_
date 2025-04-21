@@ -33,11 +33,14 @@ const Round3DSA = () => {
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [dialogMessage, setDialogMessage] = useState('You\'ve completed all DSA problems in Round 3! Your score has been recorded.');
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success'
   });
+  const [completedProblems, setCompletedProblems] = useState([]);
+  const [roundAccessPollingInterval, setRoundAccessPollingInterval] = useState(null);
   
   // Initialize with default template based on language
   const templates = {
@@ -46,6 +49,62 @@ const Round3DSA = () => {
     python: `# Your solution here\n\n# Test your solution`,
     c: `#include <stdio.h>\n\n// Your solution here\n\nint main() {\n  // Test your solution\n  return 0;\n}`
   };
+
+  // Set up polling for round access status
+  useEffect(() => {
+    // Start polling to check if round is still accessible
+    const interval = setInterval(checkRoundAccess, 15000); // Check every 15 seconds
+    setRoundAccessPollingInterval(interval);
+
+    // Clean up interval on component unmount
+    return () => {
+      if (roundAccessPollingInterval) {
+        clearInterval(roundAccessPollingInterval);
+      }
+    };
+  }, []);
+
+  // Function to check if round is still accessible
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/round-access?round_number=3');
+      if (response.data && response.data.is_open === false) {
+        // Round has been closed by admin, auto-submit current solution
+        if (roundAccessPollingInterval) {
+          clearInterval(roundAccessPollingInterval);
+        }
+        setDialogMessage('The round has been closed by an administrator. Your solution has been automatically submitted.');
+        submitSolution(true); // Pass true to indicate auto-submission
+      }
+    } catch (error) {
+      console.error('Error checking round access:', error);
+    }
+  };
+
+  // Check for completed problems
+  useEffect(() => {
+    const checkCompletedProblems = async () => {
+      try {
+        const userId = JSON.parse(localStorage.getItem('user')).id;
+        const response = await axios.get(`http://localhost:5000/api/round3/submissions?user_id=${userId}&track_type=dsa`);
+        if (response.data && response.data.submissions) {
+          const completed = response.data.submissions.map(sub => parseInt(sub.challenge_id));
+          setCompletedProblems(completed);
+          
+          // Check if all problems are completed
+          if (completed.length === dsaProblems.length && completed.length > 0) {
+            setOpenDialog(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching completed problems:', error);
+      }
+    };
+    
+    if (!loading) {
+      checkCompletedProblems();
+    }
+  }, [loading]);
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -119,7 +178,7 @@ const Round3DSA = () => {
     }, 2000);
   };
 
-  const submitSolution = async () => {
+  const submitSolution = async (autoSubmitted = false) => {
     setIsRunning(true);
     
     try {
@@ -129,19 +188,30 @@ const Round3DSA = () => {
         challenge_id: parseInt(problemId),
         challenge_name: problem.title,
         code: code,
-        language: language
+        language: language,
+        auto_submitted: autoSubmitted
       });
       
-      setSnackbar({
-        open: true,
-        message: 'Solution submitted successfully! It will be reviewed by an admin.',
-        severity: 'success'
-      });
+      if (autoSubmitted) {
+        setOpenDialog(true);
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Solution submitted successfully! It will be reviewed by an admin.',
+          severity: 'success'
+        });
+      }
+      
+      // Update completed problems
+      if (!completedProblems.includes(parseInt(problemId))) {
+        setCompletedProblems([...completedProblems, parseInt(problemId)]);
+      }
       
       // Navigate to next problem or completion page
-      if (parseInt(problemId) < dsaProblems.length) {
+      if (!autoSubmitted && parseInt(problemId) < dsaProblems.length) {
         navigate(`/round3/dsa/${parseInt(problemId) + 1}`);
       } else {
+        // All problems completed or auto-submitted
         setOpenDialog(true);
       }
       
@@ -163,7 +233,7 @@ const Round3DSA = () => {
 
   const handleDialogClose = () => {
     setOpenDialog(false);
-    navigate('/round3');
+    navigate('/participant-dashboard');
   };
 
   if (loading) {
@@ -181,10 +251,10 @@ const Round3DSA = () => {
         <Typography variant="h5">Problem not found</Typography>
         <Button 
           variant="contained" 
-          onClick={() => navigate('/round3')}
+          onClick={() => navigate('/participant-dashboard')}
           sx={{ mt: 2 }}
         >
-          ← Back to Round 3
+          ← Back to Dashboard
         </Button>
       </Box>
     );
@@ -196,10 +266,10 @@ const Round3DSA = () => {
       
       <Button 
         variant="outlined" 
-        onClick={() => navigate('/round3')}
+        onClick={() => navigate('/participant-dashboard')}
         sx={{ mb: 2 }}
       >
-        ← Back to Selection
+        ← Back to Dashboard
       </Button>
       
       <Box sx={{ display: 'flex', mb: 2 }}>
@@ -340,7 +410,7 @@ const Round3DSA = () => {
               <Button 
                 variant="contained" 
                 color="primary" 
-                onClick={submitSolution}
+                onClick={() => submitSolution(false)}
                 disabled={isRunning}
                 sx={{
                   backgroundColor: '#007acc',
@@ -427,12 +497,12 @@ const Round3DSA = () => {
         <DialogTitle>Congratulations!</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            You've completed all DSA problems in Round 3! Your score has been recorded.
+            {dialogMessage}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleDialogClose} color="primary" autoFocus>
-            Return to Round 3
+            Return to Dashboard
           </Button>
         </DialogActions>
       </Dialog>

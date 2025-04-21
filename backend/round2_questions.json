@@ -1,20 +1,132 @@
 [
   {
     "id": 1,
-    "question": "What is something",
-    "questionImage": "uploads/question_images/question_1.png",
+    "question": "What is the output of the following code snippet?\n```python\ndef func(a, b=[]):\n    b.append(a)\n    return b\n\nprint(func(1))\nprint(func(2))\nprint(func(3))\n```",
     "options": [
-      "option 1",
-      "option 2",
-      "option 3",
-      "option 4"
+      "[1], [2], [3]",
+      "[1], [1, 2], [1, 2, 3]",
+      "[1], [2, 1], [3, 2, 1]",
+      "Error: mutable default argument"
     ],
-    "optionImages": [
-      "uploads/option_images/question_1_option_0.png",
-      "uploads/option_images/question_1_option_1.png",
-      "uploads/option_images/question_1_option_2.png",
-      "uploads/option_images/question_1_option_3.png"
+    "correctAnswer": 1,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 2,
+    "question": "Which data structure would you use to implement a LIFO (Last In, First Out) collection?",
+    "options": [
+      "Queue",
+      "Stack",
+      "Linked List",
+      "Heap"
     ],
-    "correctAnswer": 2
+    "correctAnswer": 1,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 3,
+    "question": "What is the time complexity of a linear search algorithm?",
+    "options": [
+      "O(1)",
+      "O(log n)",
+      "O(n)",
+      "O(n²)"
+    ],
+    "correctAnswer": 2,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 4,
+    "question": "What does ACID stand for in the context of database transactions?",
+    "options": [
+      "Atomicity, Consistency, Isolation, Durability",
+      "Association, Correlation, Indexing, Distribution",
+      "Authentication, Configuration, Integration, Development",
+      "Asynchronous, Cached, Iteration, Delegation"
+    ],
+    "correctAnswer": 0,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 5,
+    "question": "Which of the following is NOT a RESTful API HTTP method?",
+    "options": [
+      "GET",
+      "POST",
+      "DELETE",
+      "FETCH"
+    ],
+    "correctAnswer": 3,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 6,
+    "question": "What is the output of the following C++ code?\n```cpp\n#include <iostream>\nint main() {\n    int x = 10;\n    int y = x++;\n    int z = ++x;\n    std::cout << x << \" \" << y << \" \" << z;\n    return 0;\n}\n```",
+    "options": [
+      "10 10 11",
+      "11 10 12",
+      "12 10 12",
+      "12 11 12"
+    ],
+    "correctAnswer": 2,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 7,
+    "question": "Which sorting algorithm has the worst case time complexity of O(n log n)?",
+    "options": [
+      "Bubble Sort",
+      "Selection Sort",
+      "Merge Sort",
+      "Insertion Sort"
+    ],
+    "correctAnswer": 2,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 8,
+    "question": "What is the difference between a thread and a process?",
+    "options": [
+      "Threads share memory space while processes have separate memory",
+      "Processes are faster than threads",
+      "Threads can only be used in multi-core systems",
+      "Processes can only contain one thread"
+    ],
+    "correctAnswer": 0,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 9,
+    "question": "What is the result of 1 << 3 in binary?",
+    "options": [
+      "1",
+      "4",
+      "8",
+      "16"
+    ],
+    "correctAnswer": 2,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
+  },
+  {
+    "id": 10,
+    "question": "Which of the following is an example of a recursive data structure?",
+    "options": [
+      "Array",
+      "Queue",
+      "Linked List",
+      "Binary Tree"
+    ],
+    "correctAnswer": 3,
+    "questionImage": null,
+    "optionImages": [null, null, null, null]
   }
 ]

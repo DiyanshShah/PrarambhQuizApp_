@@ -5,8 +5,8 @@ import { styled } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 
 // Create animated components with Framer Motion
-const MotionToolbar = motion(Toolbar);
-const MotionBox = motion(Box);
+const MotionToolbar = motion.create(Toolbar);
+const MotionBox = motion.create(Box);
 
 const Logo = styled(Typography)(({ theme }) => ({
     fontWeight: 800,
