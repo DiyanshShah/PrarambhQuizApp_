@@ -20,6 +20,7 @@ import {
   Container
 } from '@mui/material';
 import axios from 'axios';
+import Navbar from './Navbar';
 
 // Mock challenges data
 const webChallenges = [
@@ -407,6 +408,8 @@ const Round3Web = () => {
       minHeight: '100vh',
       color: 'text.primary'
     }}>
+      {loading && <Navbar isAdmin={false} />}
+      
       <Container maxWidth="xl" sx={{ pt: 4, pb: 8 }}>
         <Button 
           variant="outlined" 

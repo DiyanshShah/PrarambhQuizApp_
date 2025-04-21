@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Container, Typography, Box, Paper, Button, 
   Radio, RadioGroup, FormControlLabel, FormControl, 
   CircularProgress, Dialog, DialogTitle, DialogContent, 
-  DialogContentText, DialogActions
+  DialogContentText, DialogActions,
+  LinearProgress, Card, CardContent, Alert, 
+  Grid, Divider, Chip
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
@@ -15,15 +17,17 @@ const Round1 = () => {
   const [step, setStep] = useState('language-select'); // 'language-select', 'quiz', 'results'
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [questions, setQuestions] = useState([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [selectedAnswers, setSelectedAnswers] = useState({});
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(20 * 60); // 20 minutes in seconds
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
-
+  const [penaltyPoints, setPenaltyPoints] = useState(0);
+  
   const totalQuestions = 20;
+  const gracePeriod = 5 * 60; // 5 minutes in seconds
+  const timerRef = useRef(null);
 
   // Load user from localStorage
   useEffect(() => {
@@ -43,10 +47,13 @@ const Round1 = () => {
         .then(response => {
           setQuestions(response.data);
           setLoading(false);
-          setTimeLeft(60);
-          setCurrentQuestionIndex(0);
+          setTimeLeft(20 * 60); // Reset to 20 minutes
+          setSelectedAnswers({});
           setScore(0);
-          setSelectedAnswer(null);
+          setPenaltyPoints(0);
+          
+          // Start the timer
+          startTimer();
         })
         .catch(error => {
           console.error('Error loading questions:', error);
@@ -56,24 +63,40 @@ const Round1 = () => {
           setStep('language-select');
         });
     }
-  }, [step, selectedLanguage]);
-
-  // Timer countdown
-  useEffect(() => {
-    let timer;
-    if (step === 'quiz' && timeLeft > 0) {
-      timer = setTimeout(() => {
-        setTimeLeft(prevTime => prevTime - 1);
-      }, 1000);
-    } else if (step === 'quiz' && timeLeft === 0) {
-      // Time's up for current question
-      handleNextQuestion();
-    }
-
+    
+    // Cleanup timer on unmount or when step changes
     return () => {
-      clearTimeout(timer);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, [step, timeLeft]);
+  }, [step, selectedLanguage]);
+  
+  // Function to start the timer
+  const startTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prevTime => {
+        // Check if we should calculate penalty
+        if (prevTime <= (20 * 60 - gracePeriod) && prevTime % 60 === 0) {
+          // Add penalty point every minute after grace period
+          setPenaltyPoints(prev => prev + 1);
+        }
+        
+        // If time's up, auto-submit
+        if (prevTime <= 1) {
+          clearInterval(timerRef.current);
+          submitResults();
+          return 0;
+        }
+        
+        return prevTime - 1;
+      });
+    }, 1000);
+  };
 
   // Handle language selection
   const handleLanguageSelect = (language) => {
@@ -91,47 +114,48 @@ const Round1 = () => {
   };
 
   // Handle answer selection
-  const handleAnswerSelect = (index) => {
-    setSelectedAnswer(index);
+  const handleAnswerSelect = (questionIndex, answerIndex) => {
+    setSelectedAnswers(prev => ({
+      ...prev,
+      [questionIndex]: answerIndex
+    }));
   };
 
-  // Handle next question or finish quiz
-  const handleNextQuestion = () => {
-    // Check if answer was correct and update score
-    if (selectedAnswer !== null && questions[currentQuestionIndex]) {
-      if (selectedAnswer === questions[currentQuestionIndex].correctAnswer) {
-        setScore(prevScore => prevScore + 1);
-      }
-    }
-    
-    // Move to next question or finish quiz
-    if (currentQuestionIndex < totalQuestions - 1) {
-      setCurrentQuestionIndex(prevIndex => prevIndex + 1);
-      setSelectedAnswer(null);
-      setTimeLeft(60);
-    } else {
-      // Quiz completed - submit results
-      submitResults();
-    }
+  // Format time as mm:ss
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   // Submit quiz results to backend
   const submitResults = async () => {
     try {
-      // Calculate final score (adding the last answer if selected)
-      let finalScore = score;
-      if (selectedAnswer !== null && 
-          currentQuestionIndex < questions.length && 
-          selectedAnswer === questions[currentQuestionIndex].correctAnswer) {
-        finalScore += 1;
+      // Clear timer if it's running
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
       }
-
+      
+      // Calculate score
+      let totalScore = 0;
+      questions.forEach((question, index) => {
+        if (selectedAnswers[index] !== undefined && 
+            selectedAnswers[index] === question.correctAnswer) {
+          totalScore += 1;
+        }
+      });
+      
+      // Apply penalty (minimum score is 0)
+      const finalScore = Math.max(0, totalScore - penaltyPoints);
+      
       console.log("Submitting Round 1 results:", {
         user_id: user.id,
         round_number: 1,
         language: selectedLanguage,
         score: finalScore,
-        total_questions: totalQuestions
+        total_questions: totalQuestions,
+        time_taken: (20 * 60) - timeLeft, // In seconds
+        penalty: penaltyPoints
       });
 
       const response = await axios.post('http://localhost:5000/api/quiz/result', {
@@ -151,7 +175,10 @@ const Round1 = () => {
       }
 
       setStep('results');
-      setDialogMessage(`Quiz completed! Your score: ${finalScore}/${totalQuestions}`);
+      setScore(finalScore);
+      setDialogMessage(`Quiz completed! Your raw score: ${totalScore}/${totalQuestions}
+                        Penalty: -${penaltyPoints}
+                        Final Score: ${finalScore}/${totalQuestions}`);
       setDialogOpen(true);
     } catch (error) {
       console.error('Error submitting results:', error);
@@ -195,9 +222,9 @@ const Round1 = () => {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      <Navbar isAdmin={false} />
+      {step !== 'quiz' && <Navbar isAdmin={false} />}
 
-      <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
         <Paper 
           elevation={0}
           sx={{ 
@@ -270,8 +297,9 @@ const Round1 = () => {
 
               <Box sx={{ mt: 'auto' }}>
                 <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3 }}>
-                  You will be presented with 20 questions.
-                  <br />Each question has a 60-second time limit.
+                  You will be presented with all 20 questions at once.
+                  <br />You have 20 minutes to complete the entire quiz.
+                  <br />After 5 minutes, a penalty of -1 point will be applied for each additional minute.
                 </Typography>
                 <Button 
                   variant="contained" 
@@ -302,109 +330,188 @@ const Round1 = () => {
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'center',
-                    mb: 3
+                    mb: 3,
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                    py: 2,
+                    bgcolor: 'background.paper'
                   }}>
-                    <Typography variant="h6" sx={{ color: 'primary.main' }}>
-                      Question {currentQuestionIndex + 1}/{totalQuestions}
-                    </Typography>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 1, 
-                      backgroundColor: timeLeft <= 10 ? 'error.dark' : 'primary.dark',
-                      px: 2,
-                      py: 1,
-                      borderRadius: 2
-                    }}>
-                      <CircularProgress 
-                        variant="determinate" 
-                        value={(timeLeft / 60) * 100} 
-                        size={30} 
-                        sx={{ 
-                          color: 'primary.light',
-                          '& .MuiCircularProgress-circle': {
-                            transition: 'stroke-dashoffset 0.5s linear',
-                          }
-                        }}
-                      />
-                      <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
-                        {timeLeft}s
+                    <Box>
+                      <Typography variant="h6" sx={{ color: 'primary.main', mb: 1 }}>
+                        Round 1: {selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        Questions answered: {Object.keys(selectedAnswers).length}/{questions.length}
                       </Typography>
                     </Box>
+                    
+                    <Box sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end'
+                    }}>
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 1, 
+                        backgroundColor: timeLeft <= 60 ? 'error.dark' : timeLeft <= 5 * 60 ? 'warning.dark' : 'primary.dark',
+                        px: 2,
+                        py: 1,
+                        borderRadius: 2,
+                        mb: 1
+                      }}>
+                        <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
+                          {formatTime(timeLeft)}
+                        </Typography>
+                      </Box>
+                      
+                      {penaltyPoints > 0 && (
+                        <Chip 
+                          label={`Penalty: -${penaltyPoints}`} 
+                          color="error" 
+                          variant="outlined" 
+                          size="small"
+                        />
+                      )}
+                    </Box>
                   </Box>
-
-                  {questions[currentQuestionIndex] && (
-                    <>
-                      <Typography 
-                        variant="h5" 
-                        sx={{ 
-                          color: 'text.primary', 
-                          mb: 4, 
-                          textAlign: 'left',
-                          fontWeight: 600
-                        }}
-                      >
-                        {questions[currentQuestionIndex].question}
-                      </Typography>
-
-                      <FormControl component="fieldset" sx={{ width: '100%', mb: 4 }}>
-                        <RadioGroup 
-                          value={selectedAnswer !== null ? selectedAnswer.toString() : ''} 
-                          onChange={(e) => handleAnswerSelect(parseInt(e.target.value))}
-                        >
-                          {questions[currentQuestionIndex].options.map((option, index) => (
-                            <FormControlLabel 
-                              key={index} 
-                              value={index.toString()} 
-                              control={
-                                <Radio 
-                                  sx={{
-                                    color: 'text.secondary',
-                                    '&.Mui-checked': {
-                                      color: 'primary.main',
-                                    }
-                                  }}
-                                />
-                              } 
-                              label={
-                                <Typography sx={{ color: 'text.primary', fontSize: '1.1rem' }}>
-                                  {option}
-                                </Typography>
-                              }
-                              sx={{
-                                margin: '10px 0',
-                                padding: '10px 16px',
-                                borderRadius: 2,
-                                transition: 'all 0.2s',
-                                '&:hover': {
-                                  backgroundColor: 'rgba(255, 107, 0, 0.08)',
-                                },
-                                ...(selectedAnswer === index && {
-                                  backgroundColor: 'rgba(255, 107, 0, 0.1)',
-                                  border: '1px solid',
-                                  borderColor: 'primary.main',
-                                }),
-                              }}
-                            />
-                          ))}
-                        </RadioGroup>
-                      </FormControl>
-
-                      <Button 
-                        variant="contained"
-                        size="large"
-                        onClick={handleNextQuestion}
-                        sx={{ 
-                          px: 6, 
-                          py: 1.5, 
-                          fontSize: '1.1rem',
-                          mt: 'auto' 
-                        }}
-                      >
-                        {currentQuestionIndex < totalQuestions - 1 ? 'Next Question' : 'Finish Quiz'}
-                      </Button>
-                    </>
+                  
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={(timeLeft / (20 * 60)) * 100} 
+                    sx={{ 
+                      mb: 3, 
+                      height: 10, 
+                      borderRadius: 5,
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      '& .MuiLinearProgress-bar': {
+                        backgroundColor: timeLeft <= 60 ? 'error.main' : 
+                                          timeLeft <= 5 * 60 ? 'warning.main' : 
+                                          'primary.main',
+                      }
+                    }} 
+                  />
+                  
+                  {timeLeft <= 5 * 60 && timeLeft > 60 && (
+                    <Alert severity="warning" sx={{ mb: 3 }}>
+                      Grace period ended! You're now receiving a penalty of -{penaltyPoints} points.
+                    </Alert>
                   )}
+                  
+                  {timeLeft <= 60 && (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                      Less than 1 minute remaining! Your quiz will be auto-submitted when time expires.
+                    </Alert>
+                  )}
+
+                  <Grid container spacing={3}>
+                    {questions.map((question, questionIndex) => (
+                      <Grid item xs={12} key={questionIndex}>
+                        <Card sx={{ 
+                          mb: 2, 
+                          border: selectedAnswers[questionIndex] !== undefined ? '1px solid' : 'none',
+                          borderColor: 'primary.main',
+                          bgcolor: 'background.paper',
+                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                        }}>
+                          <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                              <Typography 
+                                variant="subtitle1" 
+                                sx={{ 
+                                  fontWeight: 600,
+                                  color: 'primary.main' 
+                                }}
+                              >
+                                Question {questionIndex + 1}
+                              </Typography>
+                              
+                              {selectedAnswers[questionIndex] !== undefined && (
+                                <Chip 
+                                  label="Answered" 
+                                  color="primary" 
+                                  size="small" 
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                            
+                            <Typography 
+                              variant="body1" 
+                              sx={{ 
+                                color: 'text.primary', 
+                                mb: 3, 
+                                textAlign: 'left',
+                                fontWeight: 500
+                              }}
+                            >
+                              {question.question}
+                            </Typography>
+
+                            <FormControl component="fieldset" sx={{ width: '100%' }}>
+                              <RadioGroup 
+                                value={selectedAnswers[questionIndex] !== undefined ? 
+                                      selectedAnswers[questionIndex].toString() : ''} 
+                                onChange={(e) => handleAnswerSelect(questionIndex, parseInt(e.target.value))}
+                              >
+                                {question.options.map((option, index) => (
+                                  <FormControlLabel 
+                                    key={index} 
+                                    value={index.toString()} 
+                                    control={
+                                      <Radio 
+                                        sx={{
+                                          color: 'text.secondary',
+                                          '&.Mui-checked': {
+                                            color: 'primary.main',
+                                          }
+                                        }}
+                                      />
+                                    } 
+                                    label={
+                                      <Typography sx={{ color: 'text.primary' }}>
+                                        {option}
+                                      </Typography>
+                                    }
+                                    sx={{
+                                      margin: '6px 0',
+                                      padding: '8px 12px',
+                                      borderRadius: 1,
+                                      transition: 'all 0.2s',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(255, 107, 0, 0.08)',
+                                      },
+                                      ...(selectedAnswers[questionIndex] === index && {
+                                        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                                        border: '1px solid',
+                                        borderColor: 'primary.main',
+                                      }),
+                                    }}
+                                  />
+                                ))}
+                              </RadioGroup>
+                            </FormControl>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                  
+                  <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+                    <Button 
+                      variant="contained"
+                      size="large"
+                      onClick={submitResults}
+                      sx={{ 
+                        px: 6, 
+                        py: 1.5, 
+                        fontSize: '1.1rem'
+                      }}
+                    >
+                      Submit Quiz
+                    </Button>
+                  </Box>
                 </>
               )}
             </>
@@ -436,6 +543,18 @@ const Round1 = () => {
                 Your Score: {score}/{totalQuestions}
               </Typography>
               
+              {penaltyPoints > 0 && (
+                <Typography 
+                  variant="body1"
+                  sx={{
+                    color: 'error.main',
+                    mb: 2
+                  }}
+                >
+                  Time Penalty: -{penaltyPoints} points
+                </Typography>
+              )}
+              
               <Typography 
                 variant="h6"
                 sx={{
@@ -447,7 +566,7 @@ const Round1 = () => {
               </Typography>
               
               <Button 
-                variant="contained"
+                variant="contained" 
                 size="large"
                 onClick={handleReturnToDashboard}
                 sx={{ 
@@ -465,40 +584,15 @@ const Round1 = () => {
       </Container>
 
       {/* Dialog for messages */}
-      <Dialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-        PaperProps={{
-          sx: {
-            backgroundColor: 'background.paper',
-            color: 'text.primary',
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'primary.main',
-          }
-        }}
-      >
-        <DialogTitle id="alert-dialog-title" sx={{ color: 'primary.main' }}>
-          Quiz Information
-        </DialogTitle>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+        <DialogTitle>Quiz Information</DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description" sx={{ color: 'text.secondary' }}>
+          <DialogContentText>
             {dialogMessage}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => {
-              setDialogOpen(false);
-              if (step === 'results') {
-                navigate('/participant-dashboard');
-              }
-            }} 
-            autoFocus
-            sx={{ color: 'primary.main' }}
-          >
+          <Button onClick={() => setDialogOpen(false)} color="primary">
             OK
           </Button>
         </DialogActions>

@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { dsaProblems } from '../data/dsaProblems';
 import axios from 'axios';
+import Navbar from './Navbar';
 
 const Round3DSA = () => {
   const navigate = useNavigate();
@@ -176,6 +177,7 @@ const Round3DSA = () => {
   if (!problem) {
     return (
       <Box sx={{ p: 3 }}>
+        <Navbar isAdmin={false} />
         <Typography variant="h5">Problem not found</Typography>
         <Button 
           variant="contained" 
@@ -190,6 +192,8 @@ const Round3DSA = () => {
 
   return (
     <Box sx={{ p: 2 }}>
+      {/* Only show navbar if needed */}
+      
       <Button 
         variant="outlined" 
         onClick={() => navigate('/round3')}

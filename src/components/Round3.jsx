@@ -250,7 +250,7 @@ const Round3 = () => {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      <Navbar isAdmin={false} />
+      {loading || currentQuestionIndex < 0 ? <Navbar isAdmin={false} /> : null}
 
       <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
         <Paper 
