@@ -15,7 +15,7 @@ import { styled } from '@mui/material/styles';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
-// Animated components
+// Animated components using motion.create for framer-motion v12
 const MotionContainer = motion(Container);
 const MotionPaper = motion(Paper);
 const MotionBox = motion(Box);
@@ -261,14 +261,15 @@ const Login = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <LoginButton 
-                type="submit" 
-                fullWidth 
-                size="large"
+              <LoginButton
+                type="submit"
+                fullWidth
                 disabled={loading}
-                component={motion.button}
+                sx={{
+                  position: 'relative'
+                }}
               >
-                {loading ? 'Logging in...' : 'Login'}
+                {loading ? 'Logging in...' : 'Log In'}
               </LoginButton>
             </MotionBox>
           </form>
@@ -276,43 +277,43 @@ const Login = () => {
           <MotionBox 
             sx={{ 
               mt: 4, 
-              textAlign: 'center' 
+              textAlign: 'center',
+              py: 2,
+              borderTop: '1px solid',
+              borderColor: 'divider'
             }}
             variants={itemVariants}
           >
-            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
-              Don't have an account?{' '}
-              <Link 
-                to="/signup" 
-                style={{ 
-                  color: '#3B82F6', 
-                  textDecoration: 'none',
-                  fontWeight: 600,
-                  position: 'relative'
-                }}
-              >
-                Sign up
-                <Box 
-                  component="span" 
-                  sx={{ 
-                    position: 'absolute',
-                    bottom: -2,
-                    left: 0,
-                    width: '100%',
-                    height: '2px',
-                    backgroundColor: '#3B82F6',
-                    borderRadius: '1px',
-                    transform: 'scaleX(0)',
-                    transformOrigin: 'right',
-                    transition: 'transform 0.3s ease',
-                    '.MuiLink-root:hover &': {
-                      transform: 'scaleX(1)',
-                      transformOrigin: 'left',
-                    }
-                  }}
-                />
-              </Link>
+            <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 2 }}>
+              Available Login Credentials:
             </Typography>
+            <Box sx={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'start',
+              gap: 1,
+              mx: 'auto',
+              width: 'fit-content',
+              backgroundColor: 'rgba(37, 99, 235, 0.05)',
+              p: 2,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'primary.main',
+              textAlign: 'left'
+            }}>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>
+                <strong>Admin:</strong> 231260107017 / admin
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>
+                <strong>Participant 1:</strong> 231260100001 / password123
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>
+                <strong>Participant 2:</strong> 231260100002 / password123
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary' }}>
+                <strong>Participant 3:</strong> 231260100003 / password123
+              </Typography>
+            </Box>
           </MotionBox>
         </MotionPaper>
       </MotionContainer>

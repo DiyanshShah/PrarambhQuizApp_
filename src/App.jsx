@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
-import Signup from './components/Signup';
 import AdminDashboard from './components/AdminDashboard';
 import ParticipantDashboard from './components/ParticipantDashboard';
 import Round1 from './components/Round1';
@@ -173,7 +172,6 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
           <Route path="/round-1" element={<Round1 />} />

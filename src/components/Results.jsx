@@ -42,7 +42,11 @@ const Results = ({ isAdmin }) => {
     const fetchResults = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`http://localhost:5000/api/user/${userObj.id}/results`);
+        const response = await axios.get(`http://localhost:5000/api/user/${userObj.id}/results`, {
+          params: {
+            requesting_user_id: userObj.id
+          }
+        });
         setResults(response.data.results || []);
         setLoading(false);
       } catch (err) {

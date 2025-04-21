@@ -13,30 +13,41 @@ const ParticipantDashboard = () => {
     useEffect(() => {
         const fetchUserData = async () => {
             setLoading(true);
+            
+            // Get user from localStorage
             const loggedInUser = localStorage.getItem('user');
             
             if (loggedInUser) {
                 const parsedUser = JSON.parse(loggedInUser);
+                setUser(parsedUser);
                 
                 try {
-                    // First, get the latest user data (with current_round)
-                    const userResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}`);
-                    const updatedUser = userResponse.data;
+                    // Get updated user data including current rounds and progress
+                    const userResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}`, {
+                        params: {
+                            requesting_user_id: parsedUser.id
+                        }
+                    });
                     
-                    // Save the updated user back to localStorage and state
-                    localStorage.setItem('user', JSON.stringify(updatedUser));
+                    const updatedUser = userResponse.data;
                     setUser(updatedUser);
                     
-                    // Then get the user's results to check attempted rounds
+                    // Get user results to know which rounds are already attempted
                     try {
-                        const resultsResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}/results`);
-                        const results = resultsResponse.data.results;
-                        
-                        // Check which rounds the user has already attempted
-                        const attempted = {};
-                        results.forEach(result => {
-                            attempted[result.round_number] = true;
+                        const resultsResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}/results`, {
+                            params: {
+                                requesting_user_id: parsedUser.id
+                            }
                         });
+                        
+                        const attempted = {};
+                        
+                        if (resultsResponse.data.results) {
+                            resultsResponse.data.results.forEach(result => {
+                                attempted[result.round_number] = true;
+                            });
+                        }
+                        
                         setAttemptedRounds(attempted);
                     } catch (resultsError) {
                         console.error('Error fetching user results:', resultsError);

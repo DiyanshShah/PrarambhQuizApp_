@@ -8,9 +8,12 @@ import json
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import base64
+import random  # Add import for shuffling questions
+from flask_compress import Compress  # Import Flask-Compress
 
 app = Flask(__name__)
 CORS(app)
+Compress(app)  # Initialize Flask-Compress to reduce response size
 
 # Create directories for storing images
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -36,6 +39,9 @@ class User(db.Model):
     current_round = db.Column(db.Integer, default=1)
     round3_track = db.Column(db.String(10), nullable=True)  # 'dsa' or 'web'
     registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    total_score = db.Column(db.Integer, default=0)  # Track total score across all rounds
+    round2_completed_at = db.Column(db.DateTime, nullable=True)  # Track when Round 2 was completed
+    qualified_for_round3 = db.Column(db.Boolean, default=False)  # Track if qualified for Round 3
     
     # Relationship with QuizResult
     results = db.relationship('QuizResult', backref='user', lazy=True)
@@ -74,6 +80,17 @@ class Round3Submission(db.Model):
 
 # Create database tables and admin user
 with app.app_context():
+    # Check if we need to migrate data
+    need_to_migrate = False
+    inspector = db.inspect(db.engine)
+    
+    # Check if the new columns exist in the User table
+    if 'user' in inspector.get_table_names():
+        columns = [column['name'] for column in inspector.get_columns('user')]
+        if 'total_score' not in columns or 'round2_completed_at' not in columns or 'qualified_for_round3' not in columns:
+            need_to_migrate = True
+            print("New columns detected, need to migrate data...")
+    
     # Drop and recreate all tables to apply schema changes
     db.drop_all()
     db.create_all()
@@ -86,39 +103,52 @@ with app.app_context():
         password=admin_password,
         is_admin=True,
         current_round=3,  # Admin has access to all rounds
-        registered_at=datetime.utcnow()
+        registered_at=datetime.utcnow(),
+        total_score=0,
+        qualified_for_round3=True  # Admin is always qualified
     )
     db.session.add(admin_user)
     
+    # Create predefined participant accounts
+    participants = [
+        {
+            'enrollment_no': '231260100001',
+            'username': 'participant1',
+            'password': 'password123',
+            'is_admin': False
+        },
+        {
+            'enrollment_no': '231260100002',
+            'username': 'participant2',
+            'password': 'password123',
+            'is_admin': False
+        },
+        {
+            'enrollment_no': '231260100003',
+            'username': 'participant3',
+            'password': 'password123',
+            'is_admin': False
+        },
+        # Add more predefined users as needed
+    ]
+    
+    for participant in participants:
+        hashed_password = generate_password_hash(participant['password'])
+        user = User(
+            enrollment_no=participant['enrollment_no'],
+            username=participant['username'],
+            password=hashed_password,
+            is_admin=participant['is_admin'],
+            current_round=1,
+            total_score=0,
+            qualified_for_round3=False  # New users are not qualified for Round 3 by default
+        )
+        db.session.add(user)
+    
     db.session.commit()
-    print("Admin user created successfully!")
+    print("Admin user and predefined participants created successfully!")
 
 # Routes
-@app.route('/api/signup', methods=['POST'])
-def signup():
-    data = request.get_json()
-    
-    # Check if user already exists
-    if User.query.filter_by(enrollment_no=data['enrollment_no']).first():
-        return jsonify({'error': 'Enrollment number already exists'}), 400
-    
-    if User.query.filter_by(username=data['username']).first():
-        return jsonify({'error': 'Username already exists'}), 400
-    
-    # Create new user
-    hashed_password = generate_password_hash(data['password'])
-    new_user = User(
-        enrollment_no=data['enrollment_no'],
-        username=data['username'],
-        password=hashed_password,
-        is_admin=data.get('is_admin', False)
-    )
-    
-    db.session.add(new_user)
-    db.session.commit()
-    
-    return jsonify({'message': 'User created successfully'}), 201
-
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -136,6 +166,8 @@ def login():
             'is_admin': user.is_admin,
             'current_round': user.current_round,
             'round3_track': user.round3_track,
+            'total_score': user.total_score,
+            'qualified_for_round3': user.qualified_for_round3,
             'registered_at': user.registered_at.isoformat() if user.registered_at else None
         }
     })
@@ -182,18 +214,35 @@ def save_quiz_result():
         # Add the result to the database
         db.session.add(new_result)
         
+        # Update user's total score
+        user.total_score += data['score']
+        
         # Check if user passed the round (50% or more)
         passed = data['score'] >= (data['total_questions'] / 2)
         print(f"User {user.username} scored {data['score']}/{data['total_questions']} in Round {data['round_number']} - {'PASSED' if passed else 'FAILED'}")
         
-        # Update user's current round if they passed and it's their current round
-        if passed:
-            if data['round_number'] == 1 and user.current_round <= 1:
-                user.current_round = 2
-                print(f"User {user.username} unlocked Round 2!")
-            elif data['round_number'] == 2 and user.current_round <= 2:
-                user.current_round = 3
-                print(f"User {user.username} unlocked Round 3!")
+        # Handle Round 2 completion and qualification for Round 3
+        if data['round_number'] == 2:
+            # Record when the user completed Round 2
+            user.round2_completed_at = datetime.utcnow()
+            
+            if passed:
+                # Check if this user is among the first 10 to pass Round 2
+                # Count how many users have already qualified for Round 3
+                qualified_count = User.query.filter_by(qualified_for_round3=True).count()
+                
+                if qualified_count < 10:
+                    # This user qualifies for Round 3
+                    user.qualified_for_round3 = True
+                    user.current_round = 3
+                    print(f"User {user.username} qualified for Round 3! (Position {qualified_count + 1}/10)")
+                else:
+                    print(f"User {user.username} passed Round 2 but did not qualify for Round 3 (all 10 spots filled)")
+        
+        # Update user's current round if they passed and it's their current round for Round 1
+        elif data['round_number'] == 1 and passed and user.current_round <= 1:
+            user.current_round = 2
+            print(f"User {user.username} unlocked Round 2!")
         
         # Commit changes to the database
         db.session.commit()
@@ -206,6 +255,8 @@ def save_quiz_result():
             'is_admin': user.is_admin,
             'current_round': user.current_round,
             'round3_track': user.round3_track,
+            'total_score': user.total_score,
+            'qualified_for_round3': user.qualified_for_round3,
             'registered_at': user.registered_at.isoformat() if user.registered_at else None
         }
         
@@ -237,11 +288,29 @@ def get_user_results(user_id):
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
+    # Get the requesting user from the query parameter
+    requesting_user_id = request.args.get('requesting_user_id')
+    is_admin = False
+    
+    if requesting_user_id:
+        try:
+            requesting_user_id = int(requesting_user_id)
+            requesting_user = User.query.get(requesting_user_id)
+            if requesting_user and requesting_user.is_admin:
+                is_admin = True
+        except (ValueError, TypeError):
+            # Invalid requesting_user_id, treat as non-admin
+            pass
+    
     # Get user's quiz results
     results = QuizResult.query.filter_by(user_id=user_id).all()
     
     results_data = []
     for result in results:
+        # Skip Round 3 results for non-admin users
+        if result.round_number == 3 and not is_admin:
+            continue
+            
         results_data.append({
             'id': result.id,
             'round_number': result.round_number,
@@ -252,12 +321,21 @@ def get_user_results(user_id):
             'passed': result.score >= (result.total_questions // 2)
         })
     
-    return jsonify({
+    response_data = {
         'user_id': user_id,
         'username': user.username,
         'current_round': user.current_round,
+        'total_score': user.total_score,
         'results': results_data
-    })
+    }
+    
+    # Only include Round 3 qualification status for admin or the user themselves
+    if is_admin or (requesting_user_id and requesting_user_id == user_id):
+        response_data['qualified_for_round3'] = user.qualified_for_round3
+    else:
+        response_data['qualified_for_round3'] = False
+    
+    return jsonify(response_data)
 
 @app.route('/api/admin/questions/<language>', methods=['POST'])
 def add_question(language):
@@ -454,6 +532,9 @@ def get_round2_questions():
         with open(file_path, 'r') as file:
             questions = json.load(file)
         
+        # Shuffle questions for each participant
+        random.shuffle(questions)
+        
         return jsonify(questions), 200
         
     except Exception as e:
@@ -461,6 +542,7 @@ def get_round2_questions():
         error_traceback = traceback.format_exc()
         print(f"Error fetching Round 2 questions: {str(e)}")
         print(f"Traceback: {error_traceback}")
+        print(f"File path attempted: {file_path}")
         return jsonify({'error': f'Failed to fetch Round 2 questions: {str(e)}'}), 500
 
 @app.route('/api/admin/questions/round3', methods=['POST'])
@@ -523,6 +605,9 @@ def get_round3_questions():
         with open(file_path, 'r') as file:
             questions = json.load(file)
         
+        # Shuffle questions for each participant
+        random.shuffle(questions)
+        
         print(f"Successfully loaded {len(questions)} questions from round3_questions.json")
         return jsonify(questions), 200
         
@@ -549,6 +634,9 @@ def get_questions(language):
         with open(file_path, 'r') as file:
             questions = json.load(file)
         
+        # Shuffle questions for each participant
+        random.shuffle(questions)
+        
         return jsonify(questions), 200
         
     except Exception as e:
@@ -566,15 +654,38 @@ def get_user(user_id):
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    return jsonify({
+    # Get the requesting user from the query parameter
+    requesting_user_id = request.args.get('requesting_user_id')
+    is_admin = False
+    
+    if requesting_user_id:
+        try:
+            requesting_user_id = int(requesting_user_id)
+            requesting_user = User.query.get(requesting_user_id)
+            if requesting_user and requesting_user.is_admin:
+                is_admin = True
+        except (ValueError, TypeError):
+            # Invalid requesting_user_id, treat as non-admin
+            pass
+    
+    response_data = {
         'id': user.id,
         'username': user.username,
         'enrollment_no': user.enrollment_no,
         'is_admin': user.is_admin,
         'current_round': user.current_round,
         'round3_track': user.round3_track,
+        'total_score': user.total_score,
         'registered_at': user.registered_at.isoformat() if user.registered_at else None
-    })
+    }
+    
+    # Only include Round 3 qualification for admin or the user themselves
+    if is_admin or (requesting_user_id and requesting_user_id == user_id):
+        response_data['qualified_for_round3'] = user.qualified_for_round3
+    else:
+        response_data['qualified_for_round3'] = False
+    
+    return jsonify(response_data)
 
 @app.route('/api/debug/set_user_round/<int:user_id>/<int:round_number>', methods=['GET'])
 @app.route('/api/debug/set_user_round/<int:user_id>/<int:round_number>/<string:track>', methods=['GET'])
@@ -618,43 +729,73 @@ def serve_uploads(folder, filename):
 @app.route('/api/leaderboard', methods=['GET'])
 def get_leaderboard():
     try:
+        # Check if the request is from an admin
+        requesting_user_id = request.args.get('requesting_user_id')
+        is_admin = False
+        
+        if requesting_user_id:
+            try:
+                requesting_user_id = int(requesting_user_id)
+                requesting_user = User.query.get(requesting_user_id)
+                if requesting_user and requesting_user.is_admin:
+                    is_admin = True
+            except (ValueError, TypeError):
+                # Invalid requesting_user_id, treat as non-admin
+                pass
+        
         # Get all users who are not admins
         users = User.query.filter_by(is_admin=False).all()
         
         leaderboard_data = []
         for user in users:
             # Get all quiz results for this user
-            results = QuizResult.query.filter_by(user_id=user.id).all()
+            if is_admin:
+                # For admins, include all rounds
+                results = QuizResult.query.filter_by(user_id=user.id).all()
+            else:
+                # For non-admins, exclude Round 3 results
+                results = QuizResult.query.filter(
+                    QuizResult.user_id == user.id,
+                    QuizResult.round_number != 3
+                ).all()
             
-            # Calculate total score
-            total_score = sum(result.score for result in results)
-            total_questions = sum(result.total_questions for result in results)
+            # Calculate visible score (excluding Round 3 for non-admins)
+            visible_score = sum(result.score for result in results)
+            visible_questions = sum(result.total_questions for result in results)
             
             # Only include users who have attempted at least one quiz
             if results:
-                leaderboard_data.append({
+                user_data = {
                     'user_id': user.id,
                     'username': user.username,
                     'enrollment_no': user.enrollment_no,
-                    'total_score': total_score,
-                    'total_questions': total_questions,
-                    'percentage': round((total_score / total_questions * 100), 2) if total_questions > 0 else 0,
+                    'visible_score': visible_score,
+                    'total_questions': visible_questions,
+                    'percentage': round((visible_score / visible_questions * 100), 2) if visible_questions > 0 else 0,
                     'current_round': user.current_round,
-                    'can_proceed_to_round3': user.current_round >= 3
-                })
+                }
+                
+                # For admins, include the actual total score (including Round 3)
+                if is_admin:
+                    user_data['total_score'] = user.total_score
+                    user_data['qualified_for_round3'] = user.qualified_for_round3
+                
+                leaderboard_data.append(user_data)
         
-        # Sort by total score (highest first)
-        leaderboard_data.sort(key=lambda x: x['total_score'], reverse=True)
+        # Sort by total_score for admins, visible_score for participants
+        if is_admin:
+            leaderboard_data.sort(key=lambda x: x['total_score'], reverse=True)
+        else:
+            leaderboard_data.sort(key=lambda x: x['visible_score'], reverse=True)
         
-        # Mark top 20 participants for round 3
+        # Add ranking
         for i, entry in enumerate(leaderboard_data):
             entry['rank'] = i + 1
-            if i < 20:
-                entry['can_proceed_to_round3'] = True
         
         return jsonify({
             'leaderboard': leaderboard_data,
-            'total_participants': len(leaderboard_data)
+            'total_participants': len(leaderboard_data),
+            'is_admin_view': is_admin
         }), 200
         
     except Exception as e:
@@ -663,61 +804,6 @@ def get_leaderboard():
         print(f"Error fetching leaderboard data: {str(e)}")
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to fetch leaderboard data: {str(e)}'}), 500
-
-@app.route('/api/leaderboard/update-round3', methods=['POST'])
-def update_round3_participants():
-    try:
-        # Only admin should be able to trigger this
-        data = request.get_json()
-        user_id = data.get('user_id')
-        
-        user = User.query.get(user_id)
-        if not user or not user.is_admin:
-            return jsonify({'error': 'Unauthorized access'}), 403
-        
-        # Get all users who are not admins
-        users = User.query.filter_by(is_admin=False).all()
-        
-        # Calculate scores for each user
-        user_scores = []
-        for user in users:
-            results = QuizResult.query.filter_by(user_id=user.id).all()
-            total_score = sum(result.score for result in results)
-            
-            if results:  # Only include users who have attempted at least one quiz
-                user_scores.append({
-                    'user': user,
-                    'total_score': total_score
-                })
-        
-        # Sort by total score (highest first)
-        user_scores.sort(key=lambda x: x['total_score'], reverse=True)
-        
-        # Update top 20 users to have access to round 3
-        updated_users = []
-        for i, entry in enumerate(user_scores):
-            if i < 20:
-                user = entry['user']
-                if user.current_round < 3:
-                    user.current_round = 3
-                    updated_users.append(user.username)
-        
-        # Commit changes
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Successfully updated round 3 participants',
-            'updated_users': updated_users,
-            'total_updated': len(updated_users)
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        import traceback
-        error_traceback = traceback.format_exc()
-        print(f"Error updating round 3 participants: {str(e)}")
-        print(f"Traceback: {error_traceback}")
-        return jsonify({'error': f'Failed to update round 3 participants: {str(e)}'}), 500
 
 @app.route('/api/round3/submit-dsa', methods=['POST'])
 def submit_dsa_solution():
@@ -738,6 +824,14 @@ def submit_dsa_solution():
         user = User.query.get(user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
+            
+        # Check if user has qualified for Round 3
+        if not user.qualified_for_round3:
+            return jsonify({'error': 'User has not qualified for Round 3'}), 403
+            
+        # Check if user has selected the DSA track
+        if user.round3_track != 'dsa':
+            return jsonify({'error': 'User has not selected the DSA track'}), 403
             
         # Check if user has already submitted this challenge
         existing_submission = Round3Submission.query.filter_by(
@@ -808,6 +902,14 @@ def submit_web_solution():
         user = User.query.get(user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
+            
+        # Check if user has qualified for Round 3
+        if not user.qualified_for_round3:
+            return jsonify({'error': 'User has not qualified for Round 3'}), 403
+            
+        # Check if user has selected the Web track
+        if user.round3_track != 'web':
+            return jsonify({'error': 'User has not selected the Web track'}), 403
             
         # Combine code for storage
         full_code = f"<-- HTML -->\n{html_code}\n\n<-- CSS -->\n{css_code}\n\n<-- JavaScript -->\n{js_code or '// No JavaScript'}"
@@ -924,8 +1026,16 @@ def score_round3_submission():
         submission.score = score
         submission.scored = True
         
-        # Add the score to the user's quiz results
-        # Create a new QuizResult entry for this round 3 submission
+        # Find the user
+        user = User.query.get(submission.user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        # Update the user's total score
+        user.total_score += score
+        
+        # For internal tracking, we still record the Round 3 score in QuizResult
+        # But this won't be shown to participants
         existing_result = QuizResult.query.filter_by(
             user_id=submission.user_id,
             round_number=3
@@ -954,7 +1064,10 @@ def score_round3_submission():
         return jsonify({
             'message': 'Submission scored successfully',
             'submission_id': submission_id,
-            'score': score
+            'score': score,
+            'user_id': user.id,
+            'username': user.username,
+            'new_total_score': user.total_score
         }), 200
         
     except Exception as e:
@@ -985,20 +1098,20 @@ def set_round3_track():
         if not user:
             return jsonify({'error': 'User not found'}), 404
             
-        # Check if user has access to Round 3
-        if user.current_round < 3:
-            return jsonify({'error': 'User does not have access to Round 3'}), 403
+        # Check if user has qualified for Round 3
+        if not user.qualified_for_round3:
+            return jsonify({'error': 'User has not qualified for Round 3'}), 403
             
-        # Check if user has already made submissions in the other track
-        other_track = 'web' if track == 'dsa' else 'dsa'
-        existing_submissions = Round3Submission.query.filter_by(
-            user_id=user_id,
-            track_type=other_track
-        ).first()
+        # Check if user already has a different track
+        if user.round3_track and user.round3_track != track:
+            existing_submissions = Round3Submission.query.filter_by(
+                user_id=user_id,
+                track_type=user.round3_track
+            ).first()
+            
+            if existing_submissions:
+                return jsonify({'error': f'User has already made submissions in the {user.round3_track} track'}), 400
         
-        if existing_submissions:
-            return jsonify({'error': f'User has already made submissions in the {other_track} track'}), 400
-            
         # Update user's track preference
         user.round3_track = track
         db.session.commit()
@@ -1012,6 +1125,8 @@ def set_round3_track():
                 'is_admin': user.is_admin,
                 'current_round': user.current_round,
                 'round3_track': user.round3_track,
+                'qualified_for_round3': user.qualified_for_round3,
+                'total_score': user.total_score,
                 'registered_at': user.registered_at.isoformat() if user.registered_at else None
             }
         }), 200
@@ -1023,6 +1138,51 @@ def set_round3_track():
         print(f"Error setting Round 3 track: {str(e)}")
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to set Round 3 track: {str(e)}'}), 500
+
+# Add new endpoint for getting user's Round 3 submissions
+@app.route('/api/round3/submissions', methods=['GET'])
+def get_user_round3_submissions():
+    try:
+        user_id = request.args.get('user_id')
+        track_type = request.args.get('track_type')
+        
+        # Validate parameters
+        if not user_id:
+            return jsonify({'error': 'Missing user_id parameter'}), 400
+            
+        # Optional track type filter
+        query = Round3Submission.query.filter_by(user_id=user_id)
+        if track_type:
+            query = query.filter_by(track_type=track_type)
+            
+        # Get all submissions for this user
+        submissions = query.all()
+        
+        submission_list = []
+        for submission in submissions:
+            submission_data = {
+                'id': submission.id,
+                'user_id': submission.user_id,
+                'challenge_id': submission.challenge_id,
+                'track_type': submission.track_type,
+                'challenge_name': submission.challenge_name,
+                'submitted_at': submission.submitted_at.isoformat(),
+                'scored': submission.scored,
+                'score': submission.score
+            }
+            submission_list.append(submission_data)
+        
+        return jsonify({
+            'submissions': submission_list,
+            'count': len(submission_list)
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error fetching Round 3 submissions: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to fetch Round 3 submissions: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True) 

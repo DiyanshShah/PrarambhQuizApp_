@@ -38,6 +38,7 @@ const Round3DSA = () => {
     message: '',
     severity: 'success'
   });
+  const [completedProblems, setCompletedProblems] = useState([]);
   
   // Initialize with default template based on language
   const templates = {
@@ -46,6 +47,31 @@ const Round3DSA = () => {
     python: `# Your solution here\n\n# Test your solution`,
     c: `#include <stdio.h>\n\n// Your solution here\n\nint main() {\n  // Test your solution\n  return 0;\n}`
   };
+
+  // Check for completed problems
+  useEffect(() => {
+    const checkCompletedProblems = async () => {
+      try {
+        const userId = JSON.parse(localStorage.getItem('user')).id;
+        const response = await axios.get(`http://localhost:5000/api/round3/submissions?user_id=${userId}&track_type=dsa`);
+        if (response.data && response.data.submissions) {
+          const completed = response.data.submissions.map(sub => parseInt(sub.challenge_id));
+          setCompletedProblems(completed);
+          
+          // Check if all problems are completed
+          if (completed.length === dsaProblems.length && completed.length > 0) {
+            setOpenDialog(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching completed problems:', error);
+      }
+    };
+    
+    if (!loading) {
+      checkCompletedProblems();
+    }
+  }, [loading]);
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -138,10 +164,16 @@ const Round3DSA = () => {
         severity: 'success'
       });
       
+      // Update completed problems
+      if (!completedProblems.includes(parseInt(problemId))) {
+        setCompletedProblems([...completedProblems, parseInt(problemId)]);
+      }
+      
       // Navigate to next problem or completion page
       if (parseInt(problemId) < dsaProblems.length) {
         navigate(`/round3/dsa/${parseInt(problemId) + 1}`);
       } else {
+        // All problems completed
         setOpenDialog(true);
       }
       
@@ -163,7 +195,7 @@ const Round3DSA = () => {
 
   const handleDialogClose = () => {
     setOpenDialog(false);
-    navigate('/round3');
+    navigate('/participant-dashboard');
   };
 
   if (loading) {
@@ -181,10 +213,10 @@ const Round3DSA = () => {
         <Typography variant="h5">Problem not found</Typography>
         <Button 
           variant="contained" 
-          onClick={() => navigate('/round3')}
+          onClick={() => navigate('/participant-dashboard')}
           sx={{ mt: 2 }}
         >
-          ← Back to Round 3
+          ← Back to Dashboard
         </Button>
       </Box>
     );
@@ -196,10 +228,10 @@ const Round3DSA = () => {
       
       <Button 
         variant="outlined" 
-        onClick={() => navigate('/round3')}
+        onClick={() => navigate('/participant-dashboard')}
         sx={{ mb: 2 }}
       >
-        ← Back to Selection
+        ← Back to Dashboard
       </Button>
       
       <Box sx={{ display: 'flex', mb: 2 }}>
@@ -432,7 +464,7 @@ const Round3DSA = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleDialogClose} color="primary" autoFocus>
-            Return to Round 3
+            Return to Dashboard
           </Button>
         </DialogActions>
       </Dialog>
