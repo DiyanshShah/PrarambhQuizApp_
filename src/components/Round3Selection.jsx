@@ -44,6 +44,21 @@ const Round3Selection = () => {
       return;
     }
     
+    // Check if quiz access is enabled for round 3
+    if (!userObj.round3_access_enabled) {
+      setSnackbar({
+        open: true,
+        message: 'Quiz access for Round 3 is currently disabled by the admin. Please return to the dashboard and try again later.',
+        severity: 'warning'
+      });
+      
+      // Redirect after 3 seconds
+      setTimeout(() => {
+        navigate('/participant-dashboard');
+      }, 3000);
+      return;
+    }
+    
     setUser(userObj);
     setLoading(false);
   }, [navigate]);

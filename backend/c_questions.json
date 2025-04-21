@@ -1,62 +1,183 @@
 [
   {
     "id": 1,
-    "question": "Which of the following is not a valid C variable name?",
+    "question": "Who is the father of C programming language?",
     "options": [
-      "_variable",
-      "variable_1",
-      "1_variable",
-      "variable"
+      "James Gosling",
+      "Dennis Ritchie",
+      "Bjarne Stroustrup",
+      "Guido van Rossum"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 2,
+    "question": "Which of the following is the correct file extension for a C program?",
+    "options": [
+      ".cpp",
+      ".c",
+      ".cs",
+      ".java"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 3,
+    "question": "Which function is the entry point of a C program?",
+    "options": [
+      "start()",
+      "begin()",
+      "main()",
+      "init()"
     ],
     "correctAnswer": 2
   },
   {
-    "id": 2,
-    "question": "What is the output of the following code?\n int x = 5;\nprintf(\"%d %d %d\", x++, x++, x++);\n",
-    "options": [
-      "5 6 7",
-      "7 6 5",
-      "7 7 7",
-      "Undefined behavior"
-    ],
-    "correctAnswer": 3
-  },
-  {
-    "id": 3,
-    "question": "Which is not a storage class specifier in C?",
-    "options": [
-      "auto",
-      "static",
-      "extern",
-      "virtual"
-    ],
-    "correctAnswer": 3
-  },
-  {
     "id": 4,
-    "question": "Which operator is used to access the address of a variable in C?",
+    "question": "Which of the following is used to print output in C?",
+    "options": [
+      "cin",
+      "echo",
+      "print",
+      "printf"
+    ],
+    "correctAnswer": 3
+  },
+  {
+    "id": 5,
+    "question": "Which header file is required for using printf() and scanf()?",
+    "options": [
+      "stdlib.h",
+      "string.h",
+      "stdio.h",
+      "conio.h"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 6,
+    "question": "Which of the following is a valid variable name in C?",
+    "options": [
+      "1value",
+      "_value",
+      "value#",
+      "int"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 7,
+    "question": "What is the correct syntax to declare a pointer in C?",
+    "options": [
+      "int ptr*;",
+      "*int ptr;",
+      "int *ptr;",
+      "ptr int*;"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 8,
+    "question": "Which operator is used to get the address of a variable in C?",
     "options": [
       "*",
       "&",
       "#",
-      "->"
+      "%"
     ],
     "correctAnswer": 1
   },
   {
-    "id": 5,
-    "question": "What does the sizeof() operator return?",
+    "id": 9,
+    "question": "Which keyword is used to define a constant in C?",
     "options": [
-      "The size of a variable in bits",
-      "The size of a variable in bytes",
-      "The memory address of a variable",
-      "The value of a variable"
+      "static",
+      "fixed",
+      "const",
+      "define"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 10,
+    "question": "What will `sizeof(int)` typically return on a 32-bit system?",
+    "options": [
+      "2",
+      "4",
+      "8",
+      "1"
     ],
     "correctAnswer": 1
   },
   {
-    "id": 6,
-    "question": "Which of the following is not a valid C datatype?",
+    "id": 11,
+    "question": "Which loop is guaranteed to execute at least once?",
+    "options": [
+      "for",
+      "while",
+      "do-while",
+      "None"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 12,
+    "question": "Which of these is not a valid storage class in C?",
+    "options": [
+      "auto",
+      "register",
+      "static",
+      "final"
+    ],
+    "correctAnswer": 3
+  },
+  {
+    "id": 13,
+    "question": "What is the output format specifier for a float in C?",
+    "options": [
+      "%f",
+      "%c",
+      "%d",
+      "%s"
+    ],
+    "correctAnswer": 0
+  },
+  {
+    "id": 14,
+    "question": "Which function is used to allocate memory dynamically in C?",
+    "options": [
+      "realloc()",
+      "alloc()",
+      "malloc()",
+      "calloc()"
+    ],
+    "correctAnswer": 2
+  },
+  {
+    "id": 15,
+    "question": "What is the result of 10 % 3 in C?",
+    "options": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 16,
+    "question": "Which of the following is a ternary operator in C?",
+    "options": [
+      "if-else",
+      "? :",
+      "&&",
+      "||"
+    ],
+    "correctAnswer": 1
+  },
+  {
+    "id": 17,
+    "question": "Which of these data types is not standard in C?",
     "options": [
       "int",
       "float",
@@ -66,157 +187,136 @@
     "correctAnswer": 2
   },
   {
-    "id": 7,
-    "question": "What is the correct way to declare a pointer to an integer in C?",
-    "options": [
-      "int ptr;",
-      "int *ptr;",
-      "int &ptr;",
-      "pointer int ptr;"
-    ],
-    "correctAnswer": 1
-  },
-  {
-    "id": 8,
-    "question": "What is the output of printf(\"%d\", sizeof(int));?",
-    "options": [
-      "2",
-      "4",
-      "Depends on the compiler and platform",
-      "1"
-    ],
-    "correctAnswer": 2
-  },
-  {
-    "id": 9,
-    "question": "Which function is used to read a single character from the standard input in C?",
-    "options": [
-      "getc()",
-      "read()",
-      "scan()",
-      "input()"
-    ],
-    "correctAnswer": 0
-  },
-  {
-    "id": 10,
-    "question": "How do you create a one-dimensional array in C?",
-    "options": [
-      "int array[10];",
-      "array int[10];",
-      "int array(10);",
-      "array{10};"
-    ],
-    "correctAnswer": 0
-  },
-  {
-    "id": 11,
-    "question": "What is the purpose of the 'break' statement in C?",
-    "options": [
-      "To terminate the program",
-      "To exit from a loop or switch statement",
-      "To skip to the next iteration in a loop",
-      "To return a value from a function"
-    ],
-    "correctAnswer": 1
-  },
-  {
-    "id": 12,
-    "question": "Which of the following is a valid comment in C?",
-    "options": [
-      "// This is a comment",
-      "# This is a comment",
-      "/* This is a comment */",
-      "Both A and C"
-    ],
-    "correctAnswer": 3
-  },
-  {
-    "id": 13,
-    "question": "Which function is used to allocate memory dynamically in C?",
-    "options": [
-      "alloc()",
-      "malloc()",
-      "new()",
-      "create()"
-    ],
-    "correctAnswer": 1
-  },
-  {
-    "id": 14,
-    "question": "What is the output of the following code?\n int a = 10, b = 5, c = 3;\nint d = a > b > c;\nprintf(\"%d\", d);\n",
-    "options": [
-      "1",
-      "0",
-      "Error",
-      "3"
-    ],
-    "correctAnswer": 1
-  },
-  {
-    "id": 15,
-    "question": "What does the 'static' keyword mean for a local variable in C?",
-    "options": [
-      "The variable keeps its value between function calls",
-      "The variable is allocated in the program's static memory area",
-      "The variable is shared among all instances of the function",
-      "All of the above"
-    ],
-    "correctAnswer": 3
-  },
-  {
-    "id": 16,
-    "question": "Which of the following is not a valid preprocessor directive in C?",
-    "options": [
-      "#include",
-      "#define",
-      "#import",
-      "#ifdef"
-    ],
-    "correctAnswer": 2
-  },
-  {
-    "id": 17,
-    "question": "What is the purpose of the 'const' qualifier in C?",
-    "options": [
-      "To define a constant variable",
-      "To make a function return a constant value",
-      "To indicate that a function does not modify its parameters",
-      "All of the above"
-    ],
-    "correctAnswer": 3
-  },
-  {
     "id": 18,
-    "question": "What is the output of the following code?\n int x = 10;\nvoid main() {\n    int x = 20;\n    printf(\"%d\", x);\n}\n",
+    "question": "Which function is used to read a single character from user input?",
     "options": [
-      "10",
-      "20",
-      "Error",
-      "Undefined behavior"
+      "gets()",
+      "scanf()",
+      "getchar()",
+      "fgets()"
     ],
-    "correctAnswer": 1
+    "correctAnswer": 2
   },
   {
     "id": 19,
-    "question": "Which function is used to read a formatted input from the user in C?",
+    "question": "Which of the following symbols is used for comments in C?",
     "options": [
-      "scanf()",
-      "gets()",
-      "read()",
-      "input()"
+      "// or /* */",
+      "#",
+      "<!-- -->",
+      "--"
     ],
     "correctAnswer": 0
   },
   {
     "id": 20,
-    "question": "What is the correct way to open a file for writing in C?",
+    "question": "What does the `break` statement do in a loop?",
     "options": [
-      "FILE *fp = open(\"file.txt\", \"w\");",
-      "FILE *fp = fopen(\"file.txt\", \"w\");",
-      "FILE fp = open(\"file.txt\", \"w\");",
-      "FILE = fopen(\"file.txt\", \"w\");"
+      "Skips the current iteration",
+      "Terminates the loop",
+      "Restarts the loop",
+      "Pauses the loop"
     ],
     "correctAnswer": 1
+  },
+  {
+    "question": "What is the output of the following code?\n\n#include <stdio.h>\nint main() {\n    int x = 5, y = 10;\n    printf(\"%d\", x + y);\n    return 0;\n}",
+    "options": ["5", "10", "15", "Error"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "Which of the following is not a valid data type in C?",
+    "options": ["int", "float", "string", "char"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the correct way to declare a function in C?",
+    "options": ["function myFunc();", "void myFunc();", "create myFunc();", "def myFunc();"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What will be the output of the following code?\n\n#include <stdio.h>\nint main() {\n    int arr[] = {1, 2, 3};\n    printf(\"%d\", arr[1]);\n    return 0;\n}",
+    "options": ["1", "2", "3", "Error"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct syntax to read the first character from a file in C?",
+    "options": ["getc(file)", "fgetc(file)", "read(file, 1)", "file.read(1)"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What does the 'sizeof()' operator do in C?",
+    "options": ["Returns the memory address of a variable", "Returns the size of a variable or type in bytes", "Returns the value of a variable", "Returns the length of a string"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the output of the following code?\n\n#include <stdio.h>\nint main() {\n    char a[] = \"Hello\";\n    char b[] = \"World\";\n    printf(\"%s %s\", a, b);\n    return 0;\n}",
+    "options": ["HelloWorld", "Hello World", "Hello+World", "Error"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct way to read a value into an integer variable in C?",
+    "options": ["scanf(\"%d\", value);", "scanf(\"%d\", &value);", "printf(\"%d\", &value);", "read(\"%d\", value);"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct way to include the standard input/output library in C?",
+    "options": ["#include <stdio.h>", "import stdio.h", "using namespace stdio", "include stdio.h"],
+    "correctAnswer": 0
+  },
+  {
+    "question": "What is the output of the following code?\n\n#include <stdio.h>\nint main() {\n    int x = 0;\n    printf(\"%d\", !x);\n    return 0;\n}",
+    "options": ["0", "1", "True", "False"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct way to create a comment in C?",
+    "options": ["/* comment */", "// comment", "# comment", "<!-- comment -->"],
+    "correctAnswer": 0
+  },
+  {
+    "question": "What is the output of the following code?\n\n#include <stdio.h>\nint main() {\n    int i;\n    for(i = 0; i < 5; i++) {\n        printf(\"%d \", i);\n    }\n    return 0;\n}",
+    "options": ["0 1 2 3 4", "1 2 3 4 5", "0 1 2 3 4 5", "0 1 2 3"],
+    "correctAnswer": 0
+  },
+  {
+    "question": "Which of the following is the correct way to declare a pointer to an integer in C?",
+    "options": ["int ptr;", "pointer int ptr;", "int *ptr;", "int &ptr;"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the output of the following code?\n\n#include <stdio.h>\nint main() {\n    int x = 10, y = 3;\n    printf(\"%d\", x / y);\n    return 0;\n}",
+    "options": ["3.33", "3", "3.0", "3.333333"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct way to allocate memory for an integer array of size 10 in C?",
+    "options": ["int arr = malloc(10);", "int *arr = malloc(10 * sizeof(int));", "int arr[10] = malloc(10);", "int *arr = new int[10];"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the output of the following code?\n\n#include <stdio.h>\nint main() {\n    char str[] = \"abcdef\";\n    printf(\"%c\", str[2]);\n    return 0;\n}",
+    "options": ["a", "b", "c", "d"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "Which function is used to free dynamically allocated memory in C?",
+    "options": ["delete()", "remove()", "free()", "deallocate()"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the output of the following code?\n\n#include <stdio.h>\nint main() {\n    int x = 5, y = 2;\n    printf(\"%d\", x % y);\n    return 0;\n}",
+    "options": ["2.5", "2", "1", "0"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the correct way to define a constant in C?",
+    "options": ["const int MAX = 100;", "final int MAX = 100;", "#define MAX 100", "All of the above"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "Which of the following is not a storage class specifier in C?",
+    "options": ["static", "extern", "public", "register"],
+    "correctAnswer": 2
   }
 ]

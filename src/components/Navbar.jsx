@@ -7,8 +7,14 @@ import { motion } from 'framer-motion';
 // Create animated components with Framer Motion
 const MotionToolbar = motion.create(Toolbar);
 const MotionBox = motion.create(Box);
+const MotionAppBar = motion.create(AppBar);
 
-const Logo = styled(Typography)(({ theme }) => ({
+// Animated variants
+const LogoMotion = motion.create(Typography);
+const NavButtonMotion = motion.create(Button);
+const LogoutButtonMotion = motion.create(Button);
+
+const Logo = styled(LogoMotion)(({ theme }) => ({
     fontWeight: 800,
     cursor: 'pointer',
     fontSize: '2rem',
@@ -35,7 +41,7 @@ const Logo = styled(Typography)(({ theme }) => ({
     }
 }));
 
-const NavButton = styled(Button)(({ theme }) => ({
+const NavButton = styled(NavButtonMotion)(({ theme }) => ({
     color: theme.palette.text.primary,
     fontWeight: 600,
     fontSize: '1.1rem',
@@ -63,7 +69,7 @@ const NavButton = styled(Button)(({ theme }) => ({
     }
 }));
 
-const LogoutButton = styled(Button)(({ theme }) => ({
+const LogoutButton = styled(LogoutButtonMotion)(({ theme }) => ({
     backgroundColor: theme.palette.primary.main,
     color: theme.palette.primary.contrastText,
     fontWeight: 600,
@@ -127,10 +133,9 @@ const Navbar = ({ isAdmin }) => {
     };
 
     return (
-        <AppBar 
+        <MotionAppBar 
             position="static" 
             elevation={0}
-            component={motion.div}
             initial="hidden"
             animate="visible"
             variants={navbarVariants}
@@ -160,7 +165,6 @@ const Navbar = ({ isAdmin }) => {
                         <Logo 
                             variant="h6" 
                             onClick={() => navigate(isAdmin ? '/admin-dashboard' : '/participant-dashboard')}
-                            component={motion.div}
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.98 }}
                         >
@@ -182,7 +186,6 @@ const Navbar = ({ isAdmin }) => {
                         >
                             <NavButton 
                                 onClick={() => navigate(isAdmin ? '/admin-dashboard' : '/participant-dashboard')}
-                                component={motion.button}
                                 whileTap={{ scale: 0.95 }}
                             >
                                 Dashboard
@@ -194,7 +197,6 @@ const Navbar = ({ isAdmin }) => {
                         >
                             <NavButton 
                                 onClick={() => navigate(isAdmin ? '/leaderboard' : '/participant-results')}
-                                component={motion.button}
                                 whileTap={{ scale: 0.95 }}
                             >
                                 {isAdmin ? 'Leaderboard' : 'Results'}
@@ -212,7 +214,6 @@ const Navbar = ({ isAdmin }) => {
                     >
                         <LogoutButton 
                             onClick={handleLogout}
-                            component={motion.button}
                             whileTap={{ scale: 0.95 }}
                         >
                             Logout
@@ -220,7 +221,7 @@ const Navbar = ({ isAdmin }) => {
                     </MotionBox>
                 </MotionToolbar>
             </Container>
-        </AppBar>
+        </MotionAppBar>
     );
 };
 

@@ -33,17 +33,12 @@ const Round3DSA = () => {
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
-  const [dialogMessage, setDialogMessage] = useState('You\'ve completed all DSA problems in Round 3! Your score has been recorded.');
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success'
   });
   const [completedProblems, setCompletedProblems] = useState([]);
-<<<<<<< HEAD
-  const [roundAccessPollingInterval, setRoundAccessPollingInterval] = useState(null);
-=======
->>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
   
   // Initialize with default template based on language
   const templates = {
@@ -53,40 +48,6 @@ const Round3DSA = () => {
     c: `#include <stdio.h>\n\n// Your solution here\n\nint main() {\n  // Test your solution\n  return 0;\n}`
   };
 
-<<<<<<< HEAD
-  // Set up polling for round access status
-  useEffect(() => {
-    // Start polling to check if round is still accessible
-    const interval = setInterval(checkRoundAccess, 15000); // Check every 15 seconds
-    setRoundAccessPollingInterval(interval);
-
-    // Clean up interval on component unmount
-    return () => {
-      if (roundAccessPollingInterval) {
-        clearInterval(roundAccessPollingInterval);
-      }
-    };
-  }, []);
-
-  // Function to check if round is still accessible
-  const checkRoundAccess = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/round-access?round_number=3');
-      if (response.data && response.data.is_open === false) {
-        // Round has been closed by admin, auto-submit current solution
-        if (roundAccessPollingInterval) {
-          clearInterval(roundAccessPollingInterval);
-        }
-        setDialogMessage('The round has been closed by an administrator. Your solution has been automatically submitted.');
-        submitSolution(true); // Pass true to indicate auto-submission
-      }
-    } catch (error) {
-      console.error('Error checking round access:', error);
-    }
-  };
-
-=======
->>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
   // Check for completed problems
   useEffect(() => {
     const checkCompletedProblems = async () => {
@@ -123,6 +84,21 @@ const Round3DSA = () => {
     // Check if user has access to Round 3
     if (parsedUser.current_round < 3) {
       navigate('/participant-dashboard');
+      return;
+    }
+    
+    // Check if quiz access is enabled for round 3
+    if (!parsedUser.round3_access_enabled) {
+      setSnackbar({
+        open: true,
+        message: 'Quiz access for Round 3 is currently disabled by the admin. Please return to the dashboard and try again later.',
+        severity: 'warning'
+      });
+      
+      // Redirect after 3 seconds
+      setTimeout(() => {
+        navigate('/participant-dashboard');
+      }, 3000);
       return;
     }
     
@@ -184,7 +160,7 @@ const Round3DSA = () => {
     }, 2000);
   };
 
-  const submitSolution = async (autoSubmitted = false) => {
+  const submitSolution = async () => {
     setIsRunning(true);
     
     try {
@@ -194,24 +170,14 @@ const Round3DSA = () => {
         challenge_id: parseInt(problemId),
         challenge_name: problem.title,
         code: code,
-        language: language,
-        auto_submitted: autoSubmitted
+        language: language
       });
       
-      if (autoSubmitted) {
-        setOpenDialog(true);
-      } else {
-        setSnackbar({
-          open: true,
-          message: 'Solution submitted successfully! It will be reviewed by an admin.',
-          severity: 'success'
-        });
-      }
-      
-      // Update completed problems
-      if (!completedProblems.includes(parseInt(problemId))) {
-        setCompletedProblems([...completedProblems, parseInt(problemId)]);
-      }
+      setSnackbar({
+        open: true,
+        message: 'Solution submitted successfully! It will be reviewed by an admin.',
+        severity: 'success'
+      });
       
       // Update completed problems
       if (!completedProblems.includes(parseInt(problemId))) {
@@ -219,14 +185,10 @@ const Round3DSA = () => {
       }
       
       // Navigate to next problem or completion page
-      if (!autoSubmitted && parseInt(problemId) < dsaProblems.length) {
+      if (parseInt(problemId) < dsaProblems.length) {
         navigate(`/round3/dsa/${parseInt(problemId) + 1}`);
       } else {
-<<<<<<< HEAD
-        // All problems completed or auto-submitted
-=======
         // All problems completed
->>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
         setOpenDialog(true);
       }
       
@@ -425,7 +387,7 @@ const Round3DSA = () => {
               <Button 
                 variant="contained" 
                 color="primary" 
-                onClick={() => submitSolution(false)}
+                onClick={submitSolution}
                 disabled={isRunning}
                 sx={{
                   backgroundColor: '#007acc',
@@ -512,7 +474,7 @@ const Round3DSA = () => {
         <DialogTitle>Congratulations!</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {dialogMessage}
+            You've completed all DSA problems in Round 3! Your score has been recorded.
           </DialogContentText>
         </DialogContent>
         <DialogActions>

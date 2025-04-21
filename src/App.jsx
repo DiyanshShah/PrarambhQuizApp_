@@ -1,5 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
 import ParticipantDashboard from './components/ParticipantDashboard';
@@ -11,77 +10,9 @@ import Round3DSA from './components/Round3DSA';
 import Round3Web from './components/Round3Web';
 import Leaderboard from './components/Leaderboard';
 import Results from './components/Results';
-import WaitingArea from './components/WaitingArea';
+import WaitingRoom from './components/WaitingRoom';
 import { ThemeProvider, createTheme } from '@mui/material';
-import { CssBaseline, CircularProgress, Box } from '@mui/material';
-import axios from 'axios';
-
-// Protected route component that checks round access
-const ProtectedRoundRoute = ({ children, roundNumber }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    const checkAccess = async () => {
-      // Check if user is logged in
-      const loggedInUser = localStorage.getItem('user');
-      if (!loggedInUser) {
-        navigate('/login');
-        return;
-      }
-      
-      const user = JSON.parse(loggedInUser);
-      
-      // Admin can access everything
-      if (user.is_admin) {
-        setLoading(false);
-        return;
-      }
-      
-      // Check if user has unlocked this round
-      if (user.current_round < roundNumber) {
-        navigate('/participant-dashboard');
-        return;
-      }
-      
-      // Check round access status
-      try {
-        const response = await axios.get(`http://localhost:5000/api/round-access?round_number=${roundNumber}`);
-        if (!response.data.is_open) {
-          // If round is closed, redirect to waiting area
-          navigate(`/waiting/${roundNumber}`);
-          return;
-        }
-        
-        // If all checks pass, render the component
-        setLoading(false);
-      } catch (error) {
-        console.error("Error checking round access:", error);
-        // On error, redirect to dashboard
-        navigate('/participant-dashboard');
-      }
-    };
-    
-    checkAccess();
-  }, [navigate, roundNumber, location.pathname]);
-  
-  if (loading) {
-    return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        bgcolor: 'background.default'
-      }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-  
-  return children;
-};
+import { CssBaseline } from '@mui/material';
 
 const theme = createTheme({
   palette: {
@@ -244,42 +175,14 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
-          <Route path="/waiting/:roundNumber" element={<WaitingArea />} />
-          
-          {/* Protected round routes */}
-          <Route path="/round-1" element={
-            <ProtectedRoundRoute roundNumber={1}>
-              <Round1 />
-            </ProtectedRoundRoute>
-          } />
-          <Route path="/round-2" element={
-            <ProtectedRoundRoute roundNumber={2}>
-              <Round2 />
-            </ProtectedRoundRoute>
-          } />
-          <Route path="/round-3" element={
-            <ProtectedRoundRoute roundNumber={3}>
-              <Round3 />
-            </ProtectedRoundRoute>
-          } />
-          
-          <Route path="/round3" element={
-            <ProtectedRoundRoute roundNumber={3}>
-              <Round3Selection />
-            </ProtectedRoundRoute>
-          } />
-          <Route path="/round3/dsa/:problemId" element={
-            <ProtectedRoundRoute roundNumber={3}>
-              <Round3DSA />
-            </ProtectedRoundRoute>
-          } />
+          <Route path="/waiting-room/:roundNumber" element={<WaitingRoom />} />
+          <Route path="/round-1" element={<Round1 />} />
+          <Route path="/round-2" element={<Round2 />} />
+          <Route path="/round-3" element={<Round3 />} />
+          <Route path="/round3" element={<Round3Selection />} />
+          <Route path="/round3/dsa/:problemId" element={<Round3DSA />} />
           <Route path="/round3/dsa" element={<Navigate to="/round3/dsa/1" replace />} />
-          <Route path="/round3/web" element={
-            <ProtectedRoundRoute roundNumber={3}>
-              <Round3Web />
-            </ProtectedRoundRoute>
-          } />
-          
+          <Route path="/round3/web" element={<Round3Web />} />
           <Route path="/leaderboard" element={<Leaderboard isAdmin={true} />} />
           <Route path="/participant-results" element={<Results isAdmin={false} />} />
           <Route path="/" element={<Navigate to="/login" replace />} />

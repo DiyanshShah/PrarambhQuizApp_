@@ -20,7 +20,6 @@ const Round2 = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
-  const [roundAccessPollingInterval, setRoundAccessPollingInterval] = useState(null);
 
   const totalQuestions = 20;
 
@@ -38,53 +37,19 @@ const Round2 = () => {
         return;
       }
       
+      // Check if quiz access is enabled for round 2
+      if (!parsedUser.round2_access_enabled) {
+        setDialogMessage('Quiz access for Round 2 is currently disabled by the admin. Please return to the dashboard and try again later.');
+        setDialogOpen(true);
+        setTimeout(() => navigate('/participant-dashboard'), 3000);
+        return;
+      }
+      
       setUser(parsedUser);
     } else {
       navigate('/login');
     }
   }, [navigate]);
-
-  // Check if round is still accessible - poll every 15 seconds
-  useEffect(() => {
-    // Only start polling when questions are loaded and quiz is in progress
-    if (questions.length > 0 && !loading) {
-      // Initial check
-      checkRoundAccess();
-      
-      // Set up polling interval
-      const interval = setInterval(checkRoundAccess, 15000); // Check every 15 seconds
-      setRoundAccessPollingInterval(interval);
-      
-      // Clean up
-      return () => {
-        clearInterval(interval);
-      };
-    }
-    
-    return () => {
-      if (roundAccessPollingInterval) {
-        clearInterval(roundAccessPollingInterval);
-      }
-    };
-  }, [questions, loading]);
-
-  // Function to check if round is still accessible
-  const checkRoundAccess = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/round-access?round_number=2');
-      
-      // If round is closed during the quiz, auto-submit
-      if (!response.data.is_open && questions.length > 0 && !loading) {
-        console.log('Round 2 closed by admin, auto-submitting...');
-        setDialogMessage('This round has been closed by the admin. Your answers are being submitted automatically.');
-        setDialogOpen(true);
-        await submitResults(true); // Pass true to indicate it's an auto-submit
-      }
-    } catch (error) {
-      console.error('Error checking round access:', error);
-      // Don't disrupt the quiz if checking fails
-    }
-  };
 
   // Load round 2 questions
   useEffect(() => {
@@ -153,14 +118,8 @@ const Round2 = () => {
   };
 
   // Submit quiz results to backend
-  const submitResults = async (isAutoSubmit = false) => {
+  const submitResults = async () => {
     try {
-      // Clear round access polling if it's running
-      if (roundAccessPollingInterval) {
-        clearInterval(roundAccessPollingInterval);
-        setRoundAccessPollingInterval(null);
-      }
-      
       // Calculate final score (adding the last answer if selected)
       let finalScore = score;
       if (selectedAnswer !== null && 
@@ -173,8 +132,7 @@ const Round2 = () => {
         user_id: user.id,
         round_number: 2,
         score: finalScore,
-        total_questions: Math.min(totalQuestions, questions.length),
-        auto_submitted: isAutoSubmit
+        total_questions: Math.min(totalQuestions, questions.length)
       });
 
       const response = await axios.post('http://localhost:5000/api/quiz/result', {
@@ -183,8 +141,7 @@ const Round2 = () => {
         // Round 2 doesn't have a language field, send empty string instead of null
         language: '',
         score: finalScore,
-        total_questions: Math.min(totalQuestions, questions.length),
-        auto_submitted: isAutoSubmit
+        total_questions: Math.min(totalQuestions, questions.length)
       });
 
       console.log("Round 2 results submitted successfully:", response.data);
@@ -195,9 +152,7 @@ const Round2 = () => {
         setUser(response.data.updated_user);
       }
 
-      setDialogMessage(isAutoSubmit ? 
-        `Round closed by admin. Your answers have been automatically submitted. Score: ${finalScore}/${Math.min(totalQuestions, questions.length)}` : 
-        `Quiz completed! Your score: ${finalScore}/${Math.min(totalQuestions, questions.length)}`);
+      setDialogMessage(`Quiz completed! Your score: ${finalScore}/${Math.min(totalQuestions, questions.length)}`);
       setDialogOpen(true);
       setTimeout(() => {
         navigate('/participant-dashboard');

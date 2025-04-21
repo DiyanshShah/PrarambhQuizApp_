@@ -1,61 +1,6 @@
 [
   {
     "id": 1,
-    "question": "What will be the output of the following code: print(3 * 'abc')",
-    "options": [
-      "abcabcabc",
-      "abc3",
-      "3abc",
-      "Error"
-    ],
-    "correctAnswer": 0
-  },
-  {
-    "id": 2,
-    "question": "Which of the following is not a keyword in Python?",
-    "options": [
-      "pass",
-      "assert",
-      "nonlocal",
-      "static"
-    ],
-    "correctAnswer": 3
-  },
-  {
-    "id": 3,
-    "question": "What is the output of: print(list(filter(lambda x: x < 5, [1, 5, 2, 7, 3])))",
-    "options": [
-      "[1, 2, 3]",
-      "[5, 7]",
-      "[1, 5, 2, 7, 3]",
-      "Error"
-    ],
-    "correctAnswer": 0
-  },
-  {
-    "id": 4,
-    "question": "Which data structure in Python does not allow duplicate elements?",
-    "options": [
-      "List",
-      "Dictionary",
-      "Tuple",
-      "Set"
-    ],
-    "correctAnswer": 3
-  },
-  {
-    "id": 5,
-    "question": "What is the time complexity of Python's list.append() operation?",
-    "options": [
-      "O(1)",
-      "O(n)",
-      "O(log n)",
-      "O(n²)"
-    ],
-    "correctAnswer": 0
-  },
-  {
-    "id": 6,
     "question": "Who is the creator of Python programming language?",
     "options": [
       "Dennis Ritchie",
@@ -66,7 +11,7 @@
     "correctAnswer": 2
   },
   {
-    "id": 7,
+    "id": 2,
     "question": "Which file extension is used for Python files?",
     "options": [
       ".pt",
@@ -77,7 +22,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 8,
+    "id": 3,
     "question": "What is the correct way to output 'Hello World' in Python?",
     "options": [
       "echo 'Hello World'",
@@ -88,7 +33,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 9,
+    "id": 4,
     "question": "Which of the following is used to define a function in Python?",
     "options": [
       "func",
@@ -99,7 +44,7 @@
     "correctAnswer": 3
   },
   {
-    "id": 10,
+    "id": 5,
     "question": "What data type is the object below? `x = [1, 2, 3]`",
     "options": [
       "Tuple",
@@ -110,7 +55,7 @@
     "correctAnswer": 2
   },
   {
-    "id": 11,
+    "id": 6,
     "question": "Which of the following is **not** a Python data type?",
     "options": [
       "list",
@@ -121,7 +66,7 @@
     "correctAnswer": 2
   },
   {
-    "id": 12,
+    "id": 7,
     "question": "What keyword is used to create a class in Python?",
     "options": [
       "object",
@@ -132,7 +77,7 @@
     "correctAnswer": 2
   },
   {
-    "id": 13,
+    "id": 8,
     "question": "Which of these collections defines key-value pairs?",
     "options": [
       "list",
@@ -143,7 +88,7 @@
     "correctAnswer": 3
   },
   {
-    "id": 14,
+    "id": 9,
     "question": "Which operator is used for exponentiation in Python?",
     "options": [
       "^",
@@ -154,7 +99,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 15,
+    "id": 10,
     "question": "Which of the following is used to handle exceptions in Python?",
     "options": [
       "try/except",
@@ -165,7 +110,7 @@
     "correctAnswer": 0
   },
   {
-    "id": 16,
+    "id": 11,
     "question": "How do you start a comment in Python?",
     "options": [
       "/*",
@@ -176,7 +121,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 17,
+    "id": 12,
     "question": "What is the output of `len('Python')`?",
     "options": [
       "5",
@@ -187,7 +132,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 18,
+    "id": 13,
     "question": "Which function is used to get user input in Python 3?",
     "options": [
       "cin",
@@ -198,7 +143,7 @@
     "correctAnswer": 2
   },
   {
-    "id": 19,
+    "id": 14,
     "question": "What will `type(5.0)` return?",
     "options": [
       "int",
@@ -209,7 +154,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 20,
+    "id": 15,
     "question": "Which of the following is used to import modules in Python?",
     "options": [
       "#include",
@@ -220,7 +165,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 21,
+    "id": 16,
     "question": "Which built-in function returns the largest item in an iterable?",
     "options": [
       "large()",
@@ -231,7 +176,7 @@
     "correctAnswer": 2
   },
   {
-    "id": 22,
+    "id": 17,
     "question": "What will `bool(0)` return?",
     "options": [
       "True",
@@ -242,7 +187,7 @@
     "correctAnswer": 1
   },
   {
-    "id": 23,
+    "id": 18,
     "question": "Which of these methods can be used to add an item to a list?",
     "options": [
       "insert()",
@@ -253,18 +198,18 @@
     "correctAnswer": 1
   },
   {
-    "id": 24,
-    "question": "How do you create a virtual environment in Python?",
+    "id": 19,
+    "question": "How do you start a comment in Python?",
     "options": [
-      "python -env create",
-      "virtualenv env",
-      "pip init env",
-      "python -install venv"
+      "/*",
+      "#",
+      "//",
+      "<!--"
     ],
     "correctAnswer": 1
   },
   {
-    "id": 25,
+    "id": 20,
     "question": "What is the correct file mode to open a file for reading and writing?",
     "options": [
       "r",
@@ -273,5 +218,105 @@
       "r+"
     ],
     "correctAnswer": 3
+  },
+  {
+    "question": "What is the output of the following code?\n\nx = 5\ny = 10\nprint(x + y)",
+    "options": ["5", "10", "15", "Error"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "Which of the following is not a valid Python data type?",
+    "options": ["int", "float", "char", "str"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the correct way to create a function in Python?",
+    "options": ["function myFunc():", "def myFunc():", "create myFunc():", "function = myFunc():"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What will be the output of the following code?\n\nx = [1, 2, 3]\nprint(x[1])",
+    "options": ["1", "2", "3", "[2]"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct syntax to read the first line from a file named 'file.txt'?",
+    "options": ["file('file.txt').read()", "open('file.txt').readline()", "file.open('file.txt').read(1)", "read('file.txt', 1)"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What does the 'len()' function do in Python?",
+    "options": ["Returns the largest item in an iterable", "Returns the length of an object", "Returns the lowest item in an iterable", "Rounds a number to the nearest integer"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the output of the following code?\n\na = 'Hello'\nb = 'World'\nprint(a + ' ' + b)",
+    "options": ["HelloWorld", "Hello World", "Hello+World", "Hello_World"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "Which operator is used for exponentiation in Python?",
+    "options": ["^", "**", "//", "%"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct way to import a module named 'math' in Python?",
+    "options": ["import math", "include math", "#include <math>", "using math"],
+    "correctAnswer": 0
+  },
+  {
+    "question": "What is the output of the following code?\n\nprint(bool(0))",
+    "options": ["0", "1", "True", "False"],
+    "correctAnswer": 3
+  },
+  {
+    "question": "What is the correct way to create a comment in Python?",
+    "options": ["/* comment */", "// comment", "# comment", "<!-- comment -->"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the output of the following code?\n\nprint(list(range(5)))",
+    "options": ["[0, 1, 2, 3, 4]", "[1, 2, 3, 4, 5]", "[5]", "5"],
+    "correctAnswer": 0
+  },
+  {
+    "question": "Which of the following data structures in Python maintains an ordered collection of elements?",
+    "options": ["Dictionary", "Set", "List", "None of the above"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "What is the output of the following code?\n\nprint(10 // 3)",
+    "options": ["3.33", "3", "3.0", "3.333333"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct way to check if a key exists in a dictionary named 'dict'?",
+    "options": ["key in dict", "dict.haskey(key)", "dict.contains(key)", "key.exists(dict)"],
+    "correctAnswer": 0
+  },
+  {
+    "question": "What is the output of the following code?\n\nx = 'python'\nprint(x[1:4])",
+    "options": ["pyth", "yth", "ytho", "pyt"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "Which method can be used to remove an element from a list in Python?",
+    "options": ["delete()", "remove()", "discard()", "pop()"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What would be the output of the following code?\n\nx = {'a': 1, 'b': 2}\nprint('a' in x)",
+    "options": ["1", "True", "False", "Error"],
+    "correctAnswer": 1
+  },
+  {
+    "question": "What is the correct way to convert an integer to a string in Python?",
+    "options": ["int_to_str(5)", "string(5)", "str(5)", "5.toString()"],
+    "correctAnswer": 2
+  },
+  {
+    "question": "Which of the following is a mutable data type in Python?",
+    "options": ["string", "tuple", "list", "None of the above"],
+    "correctAnswer": 2
   }
 ]

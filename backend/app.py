@@ -10,6 +10,8 @@ from werkzeug.utils import secure_filename
 import base64
 import random  # Add import for shuffling questions
 from flask_compress import Compress  # Import Flask-Compress
+from sqlalchemy import inspect
+import bcrypt
 
 app = Flask(__name__)
 CORS(app)
@@ -42,6 +44,10 @@ class User(db.Model):
     total_score = db.Column(db.Integer, default=0)  # Track total score across all rounds
     round2_completed_at = db.Column(db.DateTime, nullable=True)  # Track when Round 2 was completed
     qualified_for_round3 = db.Column(db.Boolean, default=False)  # Track if qualified for Round 3
+    quiz_access_enabled = db.Column(db.Boolean, default=False)  # General quiz access flag (for backward compatibility)
+    round1_access_enabled = db.Column(db.Boolean, default=False)  # Round 1 specific access
+    round2_access_enabled = db.Column(db.Boolean, default=False)  # Round 2 specific access
+    round3_access_enabled = db.Column(db.Boolean, default=False)  # Round 3 specific access
     
     # Relationship with QuizResult
     results = db.relationship('QuizResult', backref='user', lazy=True)
@@ -58,6 +64,7 @@ class QuizResult(db.Model):
     score = db.Column(db.Integer, nullable=False)
     total_questions = db.Column(db.Integer, nullable=False)
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed = db.Column(db.Boolean, default=True)  # Flag to indicate if the quiz was completed
 
     def __repr__(self):
         return f'<QuizResult {self.user_id}-{self.round_number}>'
@@ -78,93 +85,122 @@ class Round3Submission(db.Model):
     def __repr__(self):
         return f'<Round3Submission {self.user_id}-{self.track_type}-{self.challenge_id}>'
 
-# Add a new model for round access control
-class RoundAccess(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    round_number = db.Column(db.Integer, unique=True, nullable=False)
-    is_open = db.Column(db.Boolean, default=False)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f'<RoundAccess {self.round_number}: {"Open" if self.is_open else "Closed"}>'
-
-# Create database tables and admin user
-with app.app_context():
-    # Check if we need to migrate data
-    need_to_migrate = False
-    inspector = db.inspect(db.engine)
-    
-    # Check if the new columns exist in the User table
-    if 'user' in inspector.get_table_names():
-        columns = [column['name'] for column in inspector.get_columns('user')]
-        if 'total_score' not in columns or 'round2_completed_at' not in columns or 'qualified_for_round3' not in columns:
-            need_to_migrate = True
-            print("New columns detected, need to migrate data...")
-    
-    # Drop and recreate all tables to apply schema changes
-    db.drop_all()
-    db.create_all()
-    
-    # Initialize round access controls (all closed by default)
-    round_access_exists = RoundAccess.query.first() is not None
-    if not round_access_exists:
-        for round_num in [1, 2, 3]:
-            round_access = RoundAccess(round_number=round_num, is_open=False)
-            db.session.add(round_access)
-        print("Round access controls initialized.")
-    
-    # Always create an admin user
-    admin_password = generate_password_hash('admin')
-    admin_user = User(
-        enrollment_no='231260107017',
-        username='admin',
-        password=admin_password,
-        is_admin=True,
-        current_round=3,  # Admin has access to all rounds
-        registered_at=datetime.utcnow(),
-        total_score=0,
-        qualified_for_round3=True  # Admin is always qualified
-    )
-    db.session.add(admin_user)
-    
-    # Create predefined participant accounts
-    participants = [
-        {
-            'enrollment_no': '231260100001',
-            'username': 'participant1',
-            'password': 'password123',
-            'is_admin': False
-        },
-        {
-            'enrollment_no': '231260100002',
-            'username': 'participant2',
-            'password': 'password123',
-            'is_admin': False
-        },
-        {
-            'enrollment_no': '231260100003',
-            'username': 'participant3',
-            'password': 'password123',
-            'is_admin': False
-        },
-        # Add more predefined users as needed
-    ]
-    
-    for participant in participants:
-        hashed_password = generate_password_hash(participant['password'])
-        user = User(
-            enrollment_no=participant['enrollment_no'],
-            username=participant['username'],
-            password=hashed_password,
-            is_admin=participant['is_admin'],
-            current_round=1,
-            total_score=0,
-            qualified_for_round3=False  # New users are not qualified for Round 3 by default
-        )
-        db.session.add(user)
-    
-    db.session.commit()
-    print("Admin user and predefined participants created successfully!")
+def init_db():
+    with app.app_context():
+        inspector = inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        
+        # Check if User table exists
+        if 'user' in existing_tables:
+            # Get columns in the User table
+            columns = [column['name'] for column in inspector.get_columns('user')]
+            
+            # Check if the new columns exist
+            if ('total_score' not in columns or 'round2_completed_at' not in columns or 
+                'qualified_for_round3' not in columns or 'quiz_access_enabled' not in columns or
+                'round1_access_enabled' not in columns or 'round2_access_enabled' not in columns or
+                'round3_access_enabled' not in columns):
+                
+                print("Missing columns in User table, recreating tables...")
+                db.drop_all()
+                db.create_all()
+                
+                # Create admin user
+                admin_password = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                admin = User(
+                    enrollment_no='ADMIN',
+                    username='admin',
+                    password=admin_password,
+                    is_admin=True,
+                    current_round=3,
+                    total_score=0,
+                    qualified_for_round3=True,
+                    quiz_access_enabled=True,  # Admin can always access quizzes
+                    round1_access_enabled=True,
+                    round2_access_enabled=True,
+                    round3_access_enabled=True
+                )
+                db.session.add(admin)
+                
+                # Create predefined participants
+                participants = [
+                    {"enrollment_no": "CSE001", "username": "participant1", "password": "pass1234"},
+                    {"enrollment_no": "CSE002", "username": "participant2", "password": "pass1234"},
+                    {"enrollment_no": "CSE003", "username": "participant3", "password": "pass1234"},
+                    {"enrollment_no": "CSE004", "username": "participant4", "password": "pass1234"},
+                    {"enrollment_no": "CSE005", "username": "participant5", "password": "pass1234"}
+                ]
+                
+                for p in participants:
+                    hashed_pw = bcrypt.hashpw(p["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    participant = User(
+                        enrollment_no=p["enrollment_no"],
+                        username=p["username"],
+                        password=hashed_pw,
+                        is_admin=False,
+                        current_round=1,
+                        total_score=0,
+                        qualified_for_round3=False,  # Participants are not qualified for Round 3 by default
+                        quiz_access_enabled=False,  # By default, participants cannot access quizzes until admin enables
+                        round1_access_enabled=False,
+                        round2_access_enabled=False,
+                        round3_access_enabled=False
+                    )
+                    db.session.add(participant)
+                
+                db.session.commit()
+                print("Database initialized with admin and participants.")
+            else:
+                print("Database already initialized.")
+        else:
+            print("Creating new database...")
+            db.create_all()
+            
+            # Create admin user
+            admin_password = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            admin = User(
+                enrollment_no='ADMIN',
+                username='admin',
+                password=admin_password,
+                is_admin=True,
+                current_round=3,
+                total_score=0,
+                qualified_for_round3=True,
+                quiz_access_enabled=True,  # Admin can always access quizzes
+                round1_access_enabled=True,
+                round2_access_enabled=True,
+                round3_access_enabled=True
+            )
+            db.session.add(admin)
+            
+            # Create predefined participants
+            participants = [
+                {"enrollment_no": "CSE001", "username": "participant1", "password": "pass1234"},
+                {"enrollment_no": "CSE002", "username": "participant2", "password": "pass1234"},
+                {"enrollment_no": "CSE003", "username": "participant3", "password": "pass1234"},
+                {"enrollment_no": "CSE004", "username": "participant4", "password": "pass1234"},
+                {"enrollment_no": "CSE005", "username": "participant5", "password": "pass1234"}
+            ]
+            
+            for p in participants:
+                hashed_pw = bcrypt.hashpw(p["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                participant = User(
+                    enrollment_no=p["enrollment_no"],
+                    username=p["username"],
+                    password=hashed_pw,
+                    is_admin=False,
+                    current_round=1,
+                    total_score=0,
+                    qualified_for_round3=False,  # Participants are not qualified for Round 3 by default
+                    quiz_access_enabled=False,  # By default, participants cannot access quizzes until admin enables
+                    round1_access_enabled=False,
+                    round2_access_enabled=False,
+                    round3_access_enabled=False
+                )
+                db.session.add(participant)
+            
+            db.session.commit()
+            print("Database initialized with admin and participants.")
 
 # Routes
 @app.route('/api/login', methods=['POST'])
@@ -175,19 +211,26 @@ def login():
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({'error': 'Invalid enrollment number or password'}), 401
     
+    # Generate user data for frontend
+    user_data = {
+        'id': user.id,
+        'username': user.username,
+        'enrollment_no': user.enrollment_no,
+        'is_admin': user.is_admin,
+        'current_round': user.current_round,
+        'round3_track': user.round3_track,
+        'qualified_for_round3': user.qualified_for_round3,
+        'quiz_access_enabled': user.quiz_access_enabled,
+        'round1_access_enabled': user.round1_access_enabled,
+        'round2_access_enabled': user.round2_access_enabled,
+        'round3_access_enabled': user.round3_access_enabled,
+        'total_score': user.total_score,
+        'registered_at': user.registered_at.isoformat() if user.registered_at else None
+    }
+    
     return jsonify({
         'message': 'Login successful',
-        'user': {
-            'id': user.id,
-            'username': user.username,
-            'enrollment_no': user.enrollment_no,
-            'is_admin': user.is_admin,
-            'current_round': user.current_round,
-            'round3_track': user.round3_track,
-            'total_score': user.total_score,
-            'qualified_for_round3': user.qualified_for_round3,
-            'registered_at': user.registered_at.isoformat() if user.registered_at else None
-        }
+        'user': user_data
     })
 
 @app.route('/api/quiz/result', methods=['POST'])
@@ -196,7 +239,7 @@ def save_quiz_result():
     print(f"Received quiz result data: {data}")
     
     # Check if user exists
-    user = User.query.get(data['user_id'])
+    user = db.session.get(User, data['user_id'])
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
@@ -212,60 +255,48 @@ def save_quiz_result():
     if data['round_number'] == 1 and language_filter:
         existing_query = existing_query.filter_by(language=language_filter)
     
-    existing_attempt = existing_query.first()
-    
-    if existing_attempt:
-        print(f"User {user.username} has already attempted round {data['round_number']}")
+    existing_result = existing_query.first()
+    if existing_result:
         return jsonify({'error': 'You have already attempted this round', 'already_attempted': True}), 400
     
-    # Create new quiz result
+    # Save quiz result
     try:
-        new_result = QuizResult(
+        quiz_result = QuizResult(
             user_id=data['user_id'],
             round_number=data['round_number'],
-            language=data.get('language'),  # This can be None for Round 2
+            language=data.get('language', ''),
             score=data['score'],
             total_questions=data['total_questions'],
+            completed=True,  # Mark as completed since this is a submission
             completed_at=datetime.utcnow()
         )
-        
-        # Add the result to the database
-        db.session.add(new_result)
+        db.session.add(quiz_result)
         
         # Update user's total score
         user.total_score += data['score']
         
-        # Check if user passed the round (50% or more)
-        passed = data['score'] >= (data['total_questions'] / 2)
-        print(f"User {user.username} scored {data['score']}/{data['total_questions']} in Round {data['round_number']} - {'PASSED' if passed else 'FAILED'}")
-        
-        # Handle Round 2 completion and qualification for Round 3
+        # If this is Round 2, update the completion timestamp
         if data['round_number'] == 2:
-            # Record when the user completed Round 2
             user.round2_completed_at = datetime.utcnow()
             
-            if passed:
-                # Check if this user is among the first 10 to pass Round 2
-                # Count how many users have already qualified for Round 3
-                qualified_count = User.query.filter_by(qualified_for_round3=True).count()
-                
-                if qualified_count < 10:
-                    # This user qualifies for Round 3
-                    user.qualified_for_round3 = True
+            # Check if user qualifies for Round 3
+            if data['score'] >= 10:  # At least 10 correct answers (50%)
+                # Update user's current round to 3
+                if user.current_round < 3:
                     user.current_round = 3
-                    print(f"User {user.username} qualified for Round 3! (Position {qualified_count + 1}/10)")
-                else:
-                    print(f"User {user.username} passed Round 2 but did not qualify for Round 3 (all 10 spots filled)")
+                    user.qualified_for_round3 = True
+            
+        # If this is Round 1, check if user can proceed to Round 2
+        elif data['round_number'] == 1:
+            # Check if user got at least 60% correct
+            if data['score'] / data['total_questions'] >= 0.6:
+                if user.current_round < 2:
+                    user.current_round = 2
         
-        # Update user's current round if they passed and it's their current round for Round 1
-        elif data['round_number'] == 1 and passed and user.current_round <= 1:
-            user.current_round = 2
-            print(f"User {user.username} unlocked Round 2!")
-        
-        # Commit changes to the database
+        # Commit all changes
         db.session.commit()
         
-        # Update the user in localStorage
+        # Construct response with updated user info
         updated_user = {
             'id': user.id,
             'username': user.username,
@@ -275,19 +306,26 @@ def save_quiz_result():
             'round3_track': user.round3_track,
             'total_score': user.total_score,
             'qualified_for_round3': user.qualified_for_round3,
-            'registered_at': user.registered_at.isoformat() if user.registered_at else None
+            'quiz_access_enabled': user.quiz_access_enabled
         }
+        
+        # Check if the user passed the quiz
+        passed = False
+        if data['round_number'] == 1 and data['score'] / data['total_questions'] >= 0.6:
+            passed = True
+        elif data['round_number'] == 2 and data['score'] >= 10:
+            passed = True
         
         return jsonify({
             'message': 'Quiz result saved successfully',
             'result': {
-                'id': new_result.id,
-                'user_id': new_result.user_id,
-                'round_number': new_result.round_number,
-                'language': new_result.language,
-                'score': new_result.score,
-                'total_questions': new_result.total_questions,
-                'completed_at': new_result.completed_at.isoformat(),
+                'id': quiz_result.id,
+                'user_id': quiz_result.user_id,
+                'round_number': quiz_result.round_number,
+                'language': quiz_result.language,
+                'score': quiz_result.score,
+                'total_questions': quiz_result.total_questions,
+                'completed_at': quiz_result.completed_at.isoformat(),
                 'passed': passed
             },
             'updated_user': updated_user
@@ -302,7 +340,7 @@ def save_quiz_result():
 @app.route('/api/user/<int:user_id>/results', methods=['GET'])
 def get_user_results(user_id):
     # Check if user exists
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
@@ -313,7 +351,7 @@ def get_user_results(user_id):
     if requesting_user_id:
         try:
             requesting_user_id = int(requesting_user_id)
-            requesting_user = User.query.get(requesting_user_id)
+            requesting_user = db.session.get(User, requesting_user_id)
             if requesting_user and requesting_user.is_admin:
                 is_admin = True
         except (ValueError, TypeError):
@@ -650,12 +688,17 @@ def get_questions(language):
             return jsonify([]), 200
         
         with open(file_path, 'r') as file:
-            questions = json.load(file)
+            all_questions = json.load(file)
         
-        # Shuffle questions for each participant
-        random.shuffle(questions)
+        # Shuffle all questions
+        random.shuffle(all_questions)
         
-        return jsonify(questions), 200
+        # Select only 20 questions for each participant
+        selected_questions = all_questions[:20] if len(all_questions) > 20 else all_questions
+        
+        print(f"Total {language} questions: {len(all_questions)}, Selected: 20")
+        
+        return jsonify(selected_questions), 200
         
     except Exception as e:
         import traceback
@@ -668,7 +711,7 @@ def get_questions(language):
 @app.route('/api/user/<int:user_id>', methods=['GET'])
 def get_user(user_id):
     # Check if user exists
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
@@ -679,7 +722,7 @@ def get_user(user_id):
     if requesting_user_id:
         try:
             requesting_user_id = int(requesting_user_id)
-            requesting_user = User.query.get(requesting_user_id)
+            requesting_user = db.session.get(User, requesting_user_id)
             if requesting_user and requesting_user.is_admin:
                 is_admin = True
         except (ValueError, TypeError):
@@ -694,7 +737,11 @@ def get_user(user_id):
         'current_round': user.current_round,
         'round3_track': user.round3_track,
         'total_score': user.total_score,
-        'registered_at': user.registered_at.isoformat() if user.registered_at else None
+        'registered_at': user.registered_at.isoformat() if user.registered_at else None,
+        'quiz_access_enabled': user.quiz_access_enabled,
+        'round1_access_enabled': user.round1_access_enabled,
+        'round2_access_enabled': user.round2_access_enabled,
+        'round3_access_enabled': user.round3_access_enabled
     }
     
     # Only include Round 3 qualification for admin or the user themselves
@@ -712,7 +759,7 @@ def debug_set_user_round(user_id, round_number, track=None):
     # Should be removed or protected in production
     
     # Check if user exists
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
@@ -754,7 +801,7 @@ def get_leaderboard():
         if requesting_user_id:
             try:
                 requesting_user_id = int(requesting_user_id)
-                requesting_user = User.query.get(requesting_user_id)
+                requesting_user = db.session.get(User, requesting_user_id)
                 if requesting_user and requesting_user.is_admin:
                     is_admin = True
             except (ValueError, TypeError):
@@ -839,7 +886,7 @@ def submit_dsa_solution():
             return jsonify({'error': 'Missing required fields'}), 400
         
         # Check if user exists
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
             
@@ -917,7 +964,7 @@ def submit_web_solution():
             return jsonify({'error': 'Missing required fields'}), 400
         
         # Check if user exists
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
             
@@ -1036,7 +1083,7 @@ def score_round3_submission():
             return jsonify({'error': 'Score must be either 4 or -1'}), 400
             
         # Find the submission
-        submission = Round3Submission.query.get(submission_id)
+        submission = db.session.get(Round3Submission, submission_id)
         if not submission:
             return jsonify({'error': 'Submission not found'}), 404
             
@@ -1045,7 +1092,7 @@ def score_round3_submission():
         submission.scored = True
         
         # Find the user
-        user = User.query.get(submission.user_id)
+        user = db.session.get(User, submission.user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
             
@@ -1112,7 +1159,7 @@ def set_round3_track():
             return jsonify({'error': 'Invalid track. Must be "dsa" or "web"'}), 400
             
         # Find the user
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
             
@@ -1202,101 +1249,109 @@ def get_user_round3_submissions():
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to fetch Round 3 submissions: {str(e)}'}), 500
 
-<<<<<<< HEAD
-# Add endpoint to check round access status
-@app.route('/api/round-access', methods=['GET'])
-def get_round_access():
+# Add an endpoint to get all participants
+@app.route('/api/admin/participants', methods=['GET'])
+def get_participants():
+    # Validate that the request is from an admin
+    admin_id = request.args.get('admin_id')
+    
+    if admin_id:
+        admin = db.session.get(User, admin_id)
+        if not admin or not admin.is_admin:
+            return jsonify({'error': 'Unauthorized. Only admins can view participants.'}), 401
+    
     try:
-        round_number = request.args.get('round_number')
+        # Get all non-admin users
+        participants = User.query.filter_by(is_admin=False).all()
         
-        if round_number:
-            # Get specific round access
-            round_access = RoundAccess.query.filter_by(round_number=int(round_number)).first()
-            if not round_access:
-                return jsonify({'error': f'No access control found for round {round_number}'}), 404
-                
-            return jsonify({
-                'round_number': round_access.round_number,
-                'is_open': round_access.is_open,
-                'last_updated': round_access.last_updated.isoformat()
-            }), 200
-        else:
-            # Get all rounds access
-            all_rounds = RoundAccess.query.all()
-            access_data = []
-            
-            for round_access in all_rounds:
-                access_data.append({
-                    'round_number': round_access.round_number,
-                    'is_open': round_access.is_open,
-                    'last_updated': round_access.last_updated.isoformat()
-                })
-                
-            return jsonify({'rounds': access_data}), 200
-            
+        # Format participants for response
+        formatted_participants = []
+        for participant in participants:
+            formatted_participants.append({
+                'id': participant.id,
+                'username': participant.username,
+                'enrollment_no': participant.enrollment_no,
+                'current_round': participant.current_round,
+                'total_score': participant.total_score,
+                'round3_track': participant.round3_track,
+                'qualified_for_round3': participant.qualified_for_round3,
+                'quiz_access_enabled': participant.quiz_access_enabled,
+                'round1_access_enabled': participant.round1_access_enabled,
+                'round2_access_enabled': participant.round2_access_enabled,
+                'round3_access_enabled': participant.round3_access_enabled,
+                'registered_at': participant.registered_at.isoformat() if participant.registered_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'participants': formatted_participants
+        })
+    
     except Exception as e:
-        import traceback
-        error_traceback = traceback.format_exc()
-        print(f"Error fetching round access: {str(e)}")
-        print(f"Traceback: {error_traceback}")
-        return jsonify({'error': f'Failed to fetch round access: {str(e)}'}), 500
+        return jsonify({'error': f"Failed to get participants: {str(e)}"}), 500
 
-# Add endpoint to toggle round access (admin only)
-@app.route('/api/admin/round-access', methods=['POST'])
-def toggle_round_access():
+# Add the quiz access control API endpoint
+@app.route('/api/toggle-quiz-access', methods=['POST'])
+def toggle_quiz_access():
+    data = request.get_json()
+    
+    # Ensure the request is from an admin
+    admin_id = data.get('admin_id')
+    admin_user = db.session.get(User, admin_id)
+    
+    if not admin_user or not admin_user.is_admin:
+        return jsonify({'error': 'Unauthorized. Only admins can toggle quiz access.'}), 401
+    
+    # Get the round and access state from request
+    round_number = data.get('round_number')
+    enable_access = data.get('enable_access')
+    
+    if round_number is None or enable_access is None:
+        return jsonify({'error': 'Missing required parameters: round_number or enable_access'}), 400
+    
+    # Update all non-admin users' quiz access for the specified round
     try:
-        data = request.get_json()
+        # If access is being disabled and we have ongoing submissions, mark them as completed
+        if not enable_access:
+            # Find any ongoing quiz attempts for this round
+            ongoing_results = QuizResult.query.filter_by(round_number=round_number, completed=False).all()
+            
+            for result in ongoing_results:
+                result.completed = True
+                result.completed_at = datetime.utcnow()
+                # The score will remain as is, based on what they answered before access was cut
         
-        # Validate the request
-        if 'round_number' not in data or 'is_open' not in data:
-            return jsonify({'error': 'Missing required fields: round_number, is_open'}), 400
-            
-        # Validate the user is an admin (should be part of authentication middleware)
-        user_id = data.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'Missing user_id'}), 400
-            
-        user = User.query.get(user_id)
-        if not user or not user.is_admin:
-            return jsonify({'error': 'User is not authorized to perform this action'}), 403
-            
-        round_number = int(data['round_number'])
-        is_open = bool(data['is_open'])
+        # Update all participants' quiz access flag for the specific round
+        non_admin_users = User.query.filter_by(is_admin=False).all()
+        for user in non_admin_users:
+            # Set the round-specific access flag
+            if round_number == 1:
+                user.round1_access_enabled = enable_access
+            elif round_number == 2:
+                user.round2_access_enabled = enable_access
+            elif round_number == 3:
+                user.round3_access_enabled = enable_access
+                
+            # For backward compatibility, set the general flag if all rounds have the same status
+            if user.round1_access_enabled == user.round2_access_enabled == user.round3_access_enabled:
+                user.quiz_access_enabled = user.round1_access_enabled
+            else:
+                # If mixed access, default general flag to match the current round's status
+                user.quiz_access_enabled = enable_access
         
-        # Find the round access control
-        round_access = RoundAccess.query.filter_by(round_number=round_number).first()
-        
-        # If round access doesn't exist, create it
-        if not round_access:
-            round_access = RoundAccess(
-                round_number=round_number,
-                is_open=is_open,
-                last_updated=datetime.utcnow()
-            )
-            db.session.add(round_access)
-        else:
-            # Update the access status
-            round_access.is_open = is_open
-            round_access.last_updated = datetime.utcnow()
-            
         db.session.commit()
         
         return jsonify({
-            'message': f'Round {round_number} access set to {"open" if is_open else "closed"}',
-            'round_number': round_access.round_number,
-            'is_open': round_access.is_open,
-            'last_updated': round_access.last_updated.isoformat()
-        }), 200
-        
+            'success': True, 
+            'message': f"Quiz access for Round {round_number} has been {'enabled' if enable_access else 'disabled'} for all participants."
+        })
+    
     except Exception as e:
         db.session.rollback()
-        import traceback
-        error_traceback = traceback.format_exc()
-        print(f"Error toggling round access: {str(e)}")
-        print(f"Traceback: {error_traceback}")
-        return jsonify({'error': f'Failed to toggle round access: {str(e)}'}), 500
+        return jsonify({'error': f"Failed to update quiz access: {str(e)}"}), 500
 
-=======
->>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
+# Initialize the database
+init_db()
+
 if __name__ == '__main__':
     app.run(debug=True) 

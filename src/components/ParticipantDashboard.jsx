@@ -89,38 +89,30 @@ const ParticipantDashboard = () => {
             return;
         }
         
-        // First check round access status before allowing them to proceed
-        axios.get(`http://localhost:5000/api/round-access?round_number=${roundNumber}`)
-            .then(response => {
-                const roundAccess = response.data;
-                if (roundAccess.is_open) {
-                    // If round is open, proceed to the round
-                    if (roundNumber === 3) {
-                        navigate('/round3');
-                    } else {
-                        navigate(`/round-${roundNumber}`);
-                    }
-                } else {
-                    // If round is closed, redirect to waiting area
-                    navigate(`/waiting/${roundNumber}`);
-                }
-            })
-            .catch(error => {
-                console.error("Error checking round access:", error);
-                
-                // If there's an API error, show a dialog to ask the user what to do
-                if (window.confirm(
-                    "Could not check round access status. This might mean the admin hasn't set up round access yet. " +
-                    "Would you like to proceed to the round anyway? Click OK to continue or Cancel to stay on the dashboard."
-                )) {
-                    // User wants to proceed
-                    if (roundNumber === 3) {
-                        navigate('/round3');
-                    } else {
-                        navigate(`/round-${roundNumber}`);
-                    }
-                }
-            });
+        // Check for round-specific access
+        let roundAccessEnabled = false;
+        if (roundNumber === 1) {
+            roundAccessEnabled = user.round1_access_enabled;
+        } else if (roundNumber === 2) {
+            roundAccessEnabled = user.round2_access_enabled;
+        } else if (roundNumber === 3) {
+            roundAccessEnabled = user.round3_access_enabled;
+        }
+        
+        // If access is enabled for this specific round, go directly to the round
+        // Otherwise, send to waiting room
+        if (roundAccessEnabled) {
+            if (roundNumber === 1) {
+                navigate('/round-1');
+            } else if (roundNumber === 2) {
+                navigate('/round-2');
+            } else if (roundNumber === 3) {
+                navigate('/round3'); // This goes to the track selection
+            }
+        } else {
+            // Navigate to waiting room
+            navigate(`/waiting-room/${roundNumber}`);
+        }
     };
 
     if (loading) {
@@ -228,13 +220,26 @@ const ParticipantDashboard = () => {
                                     >
                                         Multiple choice questions on programming languages. Choose between Python and C.
                                     </Typography>
+                                    
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                                        <Typography 
+                                            variant="caption" 
+                                            sx={{ 
+                                                color: user && user.round1_access_enabled ? 'success.main' : 'error.main',
+                                                fontWeight: 'bold'
+                                            }}
+                                        >
+                                            {user && user.round1_access_enabled ? 'Access Enabled' : 'Access Disabled'}
+                                        </Typography>
+                                    </Box>
+                                    
                                     <Button 
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(1)}
-                                        disabled={user && user.current_round < 1 || attemptedRounds[1]}
+                                        disabled={user && user.current_round < 1 || attemptedRounds[1] || !user.round1_access_enabled}
                                     >
-                                        {attemptedRounds[1] ? 'Already Attempted' : 'Start Round 1'}
+                                        {attemptedRounds[1] ? 'Already Attempted' : !user.round1_access_enabled ? 'Access Disabled' : 'Start Round 1'}
                                     </Button>
                                 </Paper>
                             </Grid>
@@ -273,13 +278,26 @@ const ParticipantDashboard = () => {
                                     >
                                         Advanced programming challenges. Available after passing Round 1.
                                     </Typography>
+                                    
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                                        <Typography 
+                                            variant="caption" 
+                                            sx={{ 
+                                                color: user && user.round2_access_enabled ? 'success.main' : 'error.main',
+                                                fontWeight: 'bold'
+                                            }}
+                                        >
+                                            {user && user.round2_access_enabled ? 'Access Enabled' : 'Access Disabled'}
+                                        </Typography>
+                                    </Box>
+                                    
                                     <Button 
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(2)}
-                                        disabled={!user || user.current_round < 2 || attemptedRounds[2]}
+                                        disabled={!user || user.current_round < 2 || attemptedRounds[2] || !user.round2_access_enabled}
                                     >
-                                        {attemptedRounds[2] ? 'Already Attempted' : (user && user.current_round >= 2 ? 'Start Round 2' : 'Locked')}
+                                        {attemptedRounds[2] ? 'Already Attempted' : !user.round2_access_enabled ? 'Access Disabled' : (user && user.current_round >= 2 ? 'Start Round 2' : 'Locked')}
                                     </Button>
                                 </Paper>
                             </Grid>
@@ -318,13 +336,26 @@ const ParticipantDashboard = () => {
                                     >
                                         Expert-level programming challenges with advanced algorithms and problem-solving. Available after passing Round 2.
                                     </Typography>
+                                    
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                                        <Typography 
+                                            variant="caption" 
+                                            sx={{ 
+                                                color: user && user.round3_access_enabled ? 'success.main' : 'error.main',
+                                                fontWeight: 'bold'
+                                            }}
+                                        >
+                                            {user && user.round3_access_enabled ? 'Access Enabled' : 'Access Disabled'}
+                                        </Typography>
+                                    </Box>
+                                    
                                     <Button 
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(3)}
-                                        disabled={!user || user.current_round < 3 || attemptedRounds[3]}
+                                        disabled={!user || user.current_round < 3 || attemptedRounds[3] || !user.round3_access_enabled}
                                     >
-                                        {attemptedRounds[3] ? 'Already Attempted' : (user && user.current_round >= 3 ? 'Start Round 3' : 'Locked')}
+                                        {attemptedRounds[3] ? 'Already Attempted' : !user.round3_access_enabled ? 'Access Disabled' : (user && user.current_round >= 3 ? 'Start Round 3' : 'Locked')}
                                     </Button>
                                 </Paper>
                             </Grid>
