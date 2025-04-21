@@ -1202,6 +1202,7 @@ def get_user_round3_submissions():
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to fetch Round 3 submissions: {str(e)}'}), 500
 
+<<<<<<< HEAD
 # Add endpoint to check round access status
 @app.route('/api/round-access', methods=['GET'])
 def get_round_access():
@@ -1295,5 +1296,7 @@ def toggle_round_access():
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to toggle round access: {str(e)}'}), 500
 
+=======
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
 if __name__ == '__main__':
     app.run(debug=True) 

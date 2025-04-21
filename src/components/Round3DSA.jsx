@@ -40,7 +40,10 @@ const Round3DSA = () => {
     severity: 'success'
   });
   const [completedProblems, setCompletedProblems] = useState([]);
+<<<<<<< HEAD
   const [roundAccessPollingInterval, setRoundAccessPollingInterval] = useState(null);
+=======
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
   
   // Initialize with default template based on language
   const templates = {
@@ -50,6 +53,7 @@ const Round3DSA = () => {
     c: `#include <stdio.h>\n\n// Your solution here\n\nint main() {\n  // Test your solution\n  return 0;\n}`
   };
 
+<<<<<<< HEAD
   // Set up polling for round access status
   useEffect(() => {
     // Start polling to check if round is still accessible
@@ -81,6 +85,8 @@ const Round3DSA = () => {
     }
   };
 
+=======
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
   // Check for completed problems
   useEffect(() => {
     const checkCompletedProblems = async () => {
@@ -207,11 +213,20 @@ const Round3DSA = () => {
         setCompletedProblems([...completedProblems, parseInt(problemId)]);
       }
       
+      // Update completed problems
+      if (!completedProblems.includes(parseInt(problemId))) {
+        setCompletedProblems([...completedProblems, parseInt(problemId)]);
+      }
+      
       // Navigate to next problem or completion page
       if (!autoSubmitted && parseInt(problemId) < dsaProblems.length) {
         navigate(`/round3/dsa/${parseInt(problemId) + 1}`);
       } else {
+<<<<<<< HEAD
         // All problems completed or auto-submitted
+=======
+        // All problems completed
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
         setOpenDialog(true);
       }
       

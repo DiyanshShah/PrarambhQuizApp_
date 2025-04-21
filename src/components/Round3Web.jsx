@@ -247,8 +247,11 @@ const Round3Web = () => {
     severity: 'info'
   });
   const [completedChallenges, setCompletedChallenges] = useState([]);
+<<<<<<< HEAD
   const [roundAccessPollingInterval, setRoundAccessPollingInterval] = useState(null);
   const [dialogMessage, setDialogMessage] = useState("You've completed all web challenges in Round 3! Your solution has been submitted for review.");
+=======
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -426,6 +429,7 @@ const Round3Web = () => {
       const challenge = webChallenges[currentChallenge];
       const result = await submitChallenge(challenge.id, htmlCode, cssCode, jsCode);
       
+<<<<<<< HEAD
       if (result.success) {
         // If this was an auto-submit due to round closure
         if (isAutoSubmit) {
@@ -459,6 +463,27 @@ const Round3Web = () => {
           message: result.message,
           severity: 'error'
         });
+=======
+      setSnackbar({
+        open: true,
+        message: result.message,
+        severity: result.success ? 'success' : 'error'
+      });
+
+      // Update completed challenges
+      if (result.success && !completedChallenges.includes(challenge.id)) {
+        setCompletedChallenges([...completedChallenges, challenge.id]);
+      }
+      
+      // If this was the last challenge and it was successful, show completion dialog
+      if (result.success && currentChallenge === webChallenges.length - 1) {
+        setOpenDialog(true);
+      } else if (result.success) {
+        // Move to next challenge if successful
+        setTimeout(() => {
+          selectChallenge(currentChallenge + 1);
+        }, 1500);
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
       }
     } catch (error) {
       setSnackbar({
@@ -497,6 +522,7 @@ const Round3Web = () => {
 
   const handleDialogClose = () => {
     setOpenDialog(false);
+<<<<<<< HEAD
     
     // If we've completed all challenges, redirect to dashboard
     if (completedChallenges.length === webChallenges.length) {
@@ -508,6 +534,9 @@ const Round3Web = () => {
       
       navigate('/participant-dashboard');
     }
+=======
+    navigate('/participant-dashboard');
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
   };
 
   if (loading) {
@@ -822,11 +851,20 @@ const Round3Web = () => {
         aria-describedby="alert-dialog-description"
       >
         <DialogTitle id="alert-dialog-title">
+<<<<<<< HEAD
           {dialogMessage}
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="alert-dialog-description">
             {dialogMessage}
+=======
+          Congratulations!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            You've completed all Web Development challenges for Round 3! 
+            Your submissions will be reviewed by our team.
+>>>>>>> 9b20a592da3718e3710d8161a3294a561fb7fa64
           </DialogContentText>
         </DialogContent>
         <DialogActions>
