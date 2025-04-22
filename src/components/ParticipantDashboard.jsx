@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Typography, Box, Paper, Button, Grid, CircularProgress } from '@mui/material';
+import { Container, Typography, Box, Paper, Button, Grid, CircularProgress, Chip, Snackbar, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from './Navbar';
@@ -9,6 +9,69 @@ const ParticipantDashboard = () => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [attemptedRounds, setAttemptedRounds] = useState({});
+    const [roundsAccess, setRoundsAccess] = useState({
+        round1: { enabled: false },
+        round2: { enabled: false },
+        round3: { enabled: false }
+    });
+    const [accessPolling, setAccessPolling] = useState(true); // Changed to true by default
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'info'
+    });
+    const [previousAccess, setPreviousAccess] = useState({
+        round1: { enabled: false },
+        round2: { enabled: false },
+        round3: { enabled: false }
+    });
+
+    // Function to check rounds access status
+    const checkRoundsAccess = async () => {
+        try {
+            const response = await axios.get('/api/rounds/access');
+            return response.data;
+        } catch (error) {
+            console.error('Error checking rounds access:', error);
+            return roundsAccess;
+        }
+    };
+
+    // Check for access changes and show notifications
+    const handleAccessChange = (newAccess) => {
+        // Check for changes in access status
+        let hasChanges = false;
+        let changeMessage = '';
+        let changeSeverity = 'info';
+
+        Object.keys(newAccess).forEach(roundKey => {
+            const round = roundKey.charAt(5); // Extract round number (1, 2, or 3)
+            const wasEnabled = previousAccess[roundKey]?.enabled;
+            const isEnabled = newAccess[roundKey]?.enabled;
+            
+            if (wasEnabled !== isEnabled) {
+                hasChanges = true;
+                if (isEnabled) {
+                    changeMessage = `Round ${round} is now enabled! You can participate.`;
+                    changeSeverity = 'success';
+                } else {
+                    changeMessage = `Round ${round} has been disabled by the administrator.`;
+                    changeSeverity = 'warning';
+                }
+            }
+        });
+
+        if (hasChanges) {
+            setSnackbar({
+                open: true,
+                message: changeMessage,
+                severity: changeSeverity
+            });
+        }
+
+        // Update previous access for next comparison
+        setPreviousAccess(newAccess);
+    };
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -23,7 +86,7 @@ const ParticipantDashboard = () => {
                 
                 try {
                     // Get updated user data including current rounds and progress
-                    const userResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}`, {
+                    const userResponse = await axios.get(`/api/user/${parsedUser.id}`, {
                         params: {
                             requesting_user_id: parsedUser.id
                         }
@@ -32,9 +95,14 @@ const ParticipantDashboard = () => {
                     const updatedUser = userResponse.data;
                     setUser(updatedUser);
                     
+                    // Check rounds access status
+                    const access = await checkRoundsAccess();
+                    setRoundsAccess(access);
+                    setPreviousAccess(access); // Initialize previous access
+                    
                     // Get user results to know which rounds are already attempted
                     try {
-                        const resultsResponse = await axios.get(`http://localhost:5000/api/user/${parsedUser.id}/results`, {
+                        const resultsResponse = await axios.get(`/api/user/${parsedUser.id}/results`, {
                             params: {
                                 requesting_user_id: parsedUser.id
                             }
@@ -82,37 +150,81 @@ const ParticipantDashboard = () => {
         fetchUserData();
     }, [navigate]);
 
+    // Enhanced polling for round access - continuous polling whether waiting or not
+    useEffect(() => {
+        let intervalId;
+        
+        if (user) {
+            // Set up continuous polling
+            intervalId = setInterval(async () => {
+                const access = await checkRoundsAccess();
+                
+                // Compare with previous state to detect changes
+                const hasChanged = 
+                    access.round1.enabled !== roundsAccess.round1.enabled ||
+                    access.round2.enabled !== roundsAccess.round2.enabled ||
+                    access.round3.enabled !== roundsAccess.round3.enabled;
+                
+                if (hasChanged) {
+                    console.log("Round access status changed:", access);
+                    handleAccessChange(access);
+                    setRoundsAccess(access);
+                }
+            }, 5000); // Check every 5 seconds for more responsiveness
+        }
+        
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [user, roundsAccess]);
+
     const startRound = (roundNumber) => {
         // Check if the user has already attempted this round
         if (attemptedRounds[roundNumber]) {
-            alert(`You have already attempted Round ${roundNumber} and cannot retake it.`);
+            setSnackbar({
+                open: true,
+                message: `You have already attempted Round ${roundNumber} and cannot retake it.`,
+                severity: 'error'
+            });
             return;
         }
         
-        // Check for round-specific access
-        let roundAccessEnabled = false;
-        if (roundNumber === 1) {
-            roundAccessEnabled = user.round1_access_enabled;
-        } else if (roundNumber === 2) {
-            roundAccessEnabled = user.round2_access_enabled;
-        } else if (roundNumber === 3) {
-            roundAccessEnabled = user.round3_access_enabled;
+        // Check if the round is enabled by admin
+        const roundEnabled = roundsAccess[`round${roundNumber}`]?.enabled;
+        if (!roundEnabled && (!user || !user.is_admin)) {
+            setSnackbar({
+                open: true,
+                message: `Round ${roundNumber} is not yet enabled by the administrator. Please wait for access.`,
+                severity: 'warning'
+            });
+            setAccessPolling(true);
+            return;
         }
         
-        // If access is enabled for this specific round, go directly to the round
-        // Otherwise, send to waiting room
-        if (roundAccessEnabled) {
-            if (roundNumber === 1) {
-                navigate('/round-1');
-            } else if (roundNumber === 2) {
-                navigate('/round-2');
-            } else if (roundNumber === 3) {
-                navigate('/round3'); // This goes to the track selection
-            }
+        // Navigate to the appropriate round
+        if (roundNumber === 3) {
+            navigate('/round3'); // This will go to Round3Selection
         } else {
-            // Navigate to waiting room
-            navigate(`/waiting-room/${roundNumber}`);
+            navigate(`/round-${roundNumber}`);
         }
+    };
+
+    const renderAccessStatus = (roundNumber) => {
+        const roundEnabled = roundsAccess[`round${roundNumber}`]?.enabled;
+        
+        if (user && user.is_admin) {
+            return <Chip label="Admin Access" color="info" size="small" sx={{ ml: 1 }} />;
+        }
+        
+        if (roundEnabled) {
+            return <Chip label="Enabled" color="success" size="small" sx={{ ml: 1 }} />;
+        } else {
+            return <Chip label="Waiting for access..." color="warning" size="small" sx={{ ml: 1 }} />;
+        }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar({ ...snackbar, open: false });
     };
 
     if (loading) {
@@ -179,11 +291,20 @@ const ParticipantDashboard = () => {
                                 maxWidth: '1000px',
                                 mx: 'auto',
                                 lineHeight: 1.6,
-                                mb: 6
+                                mb: 3
                             }}
                         >
                             Welcome to your dashboard. Here you can participate in rounds and view your results.
                         </Typography>
+                        
+                        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center' }}>
+                            <Chip 
+                                icon={<CircularProgress size={16} sx={{ color: 'inherit' }} />}
+                                label="Auto-refreshing round access status" 
+                                color="primary" 
+                                variant="outlined"
+                            />
+                        </Box>
 
                         <Grid container spacing={4} sx={{ mb: 6 }}>
                             <Grid item xs={12} md={4}>
@@ -197,19 +318,37 @@ const ParticipantDashboard = () => {
                                         borderColor: 'primary.main',
                                         height: '100%',
                                         display: 'flex',
-                                        flexDirection: 'column'
+                                        flexDirection: 'column',
+                                        transition: 'all 0.3s ease',
+                                        // Pulse animation when enabled
+                                        ...(roundsAccess.round1?.enabled && {
+                                            animation: 'pulse 2s infinite',
+                                            '@keyframes pulse': {
+                                                '0%': {
+                                                    boxShadow: '0 0 0 0 rgba(255, 107, 0, 0.4)'
+                                                },
+                                                '70%': {
+                                                    boxShadow: '0 0 0 10px rgba(255, 107, 0, 0)'
+                                                },
+                                                '100%': {
+                                                    boxShadow: '0 0 0 0 rgba(255, 107, 0, 0)'
+                                                }
+                                            }
+                                        })
                                     }}
                                 >
-                                    <Typography 
-                                        variant="h5" 
-                                        sx={{ 
-                                            color: 'primary.main',
-                                            fontWeight: 600,
-                                            mb: 2
-                                        }}
-                                    >
-                                        Round 1
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                        <Typography 
+                                            variant="h5" 
+                                            sx={{ 
+                                                color: 'primary.main',
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            Round 1
+                                        </Typography>
+                                        {renderAccessStatus(1)}
+                                    </Box>
                                     <Typography 
                                         variant="body1"
                                         sx={{
@@ -220,26 +359,13 @@ const ParticipantDashboard = () => {
                                     >
                                         Multiple choice questions on programming languages. Choose between Python and C.
                                     </Typography>
-                                    
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                        <Typography 
-                                            variant="caption" 
-                                            sx={{ 
-                                                color: user && user.round1_access_enabled ? 'success.main' : 'error.main',
-                                                fontWeight: 'bold'
-                                            }}
-                                        >
-                                            {user && user.round1_access_enabled ? 'Access Enabled' : 'Access Disabled'}
-                                        </Typography>
-                                    </Box>
-                                    
                                     <Button 
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(1)}
-                                        disabled={user && user.current_round < 1 || attemptedRounds[1] || !user.round1_access_enabled}
+                                        disabled={user && user.current_round < 1 || attemptedRounds[1] || (!roundsAccess.round1?.enabled && !user?.is_admin)}
                                     >
-                                        {attemptedRounds[1] ? 'Already Attempted' : !user.round1_access_enabled ? 'Access Disabled' : 'Start Round 1'}
+                                        {attemptedRounds[1] ? 'Already Attempted' : 'Start Round 1'}
                                     </Button>
                                 </Paper>
                             </Grid>
@@ -255,19 +381,37 @@ const ParticipantDashboard = () => {
                                         borderColor: user && user.current_round >= 2 ? 'primary.main' : 'grey.700',
                                         height: '100%',
                                         display: 'flex',
-                                        flexDirection: 'column'
+                                        flexDirection: 'column',
+                                        transition: 'all 0.3s ease',
+                                        // Pulse animation when enabled and available
+                                        ...(roundsAccess.round2?.enabled && user && user.current_round >= 2 && !attemptedRounds[2] && {
+                                            animation: 'pulse 2s infinite',
+                                            '@keyframes pulse': {
+                                                '0%': {
+                                                    boxShadow: '0 0 0 0 rgba(255, 107, 0, 0.4)'
+                                                },
+                                                '70%': {
+                                                    boxShadow: '0 0 0 10px rgba(255, 107, 0, 0)'
+                                                },
+                                                '100%': {
+                                                    boxShadow: '0 0 0 0 rgba(255, 107, 0, 0)'
+                                                }
+                                            }
+                                        })
                                     }}
                                 >
-                                    <Typography 
-                                        variant="h5" 
-                                        sx={{ 
-                                            color: user && user.current_round >= 2 ? 'primary.main' : 'grey.500',
-                                            fontWeight: 600,
-                                            mb: 2
-                                        }}
-                                    >
-                                        Round 2
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                        <Typography 
+                                            variant="h5" 
+                                            sx={{ 
+                                                color: user && user.current_round >= 2 ? 'primary.main' : 'grey.500',
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            Round 2
+                                        </Typography>
+                                        {user && user.current_round >= 2 && renderAccessStatus(2)}
+                                    </Box>
                                     <Typography 
                                         variant="body1"
                                         sx={{
@@ -278,26 +422,17 @@ const ParticipantDashboard = () => {
                                     >
                                         Advanced programming challenges. Available after passing Round 1.
                                     </Typography>
-                                    
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                        <Typography 
-                                            variant="caption" 
-                                            sx={{ 
-                                                color: user && user.round2_access_enabled ? 'success.main' : 'error.main',
-                                                fontWeight: 'bold'
-                                            }}
-                                        >
-                                            {user && user.round2_access_enabled ? 'Access Enabled' : 'Access Disabled'}
-                                        </Typography>
-                                    </Box>
-                                    
                                     <Button 
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(2)}
-                                        disabled={!user || user.current_round < 2 || attemptedRounds[2] || !user.round2_access_enabled}
+                                        disabled={user && user.current_round < 2 || attemptedRounds[2] || (!roundsAccess.round2?.enabled && !user?.is_admin)}
+                                        sx={{
+                                            opacity: user && user.current_round >= 2 ? 1 : 0.6
+                                        }}
                                     >
-                                        {attemptedRounds[2] ? 'Already Attempted' : !user.round2_access_enabled ? 'Access Disabled' : (user && user.current_round >= 2 ? 'Start Round 2' : 'Locked')}
+                                        {user && user.current_round < 2 ? 'Locked' : 
+                                         attemptedRounds[2] ? 'Already Attempted' : 'Start Round 2'}
                                     </Button>
                                 </Paper>
                             </Grid>
@@ -313,19 +448,37 @@ const ParticipantDashboard = () => {
                                         borderColor: user && user.current_round >= 3 ? 'primary.main' : 'grey.700',
                                         height: '100%',
                                         display: 'flex',
-                                        flexDirection: 'column'
+                                        flexDirection: 'column',
+                                        transition: 'all 0.3s ease',
+                                        // Pulse animation when enabled and qualified
+                                        ...(roundsAccess.round3?.enabled && user && user.qualified_for_round3 && {
+                                            animation: 'pulse 2s infinite',
+                                            '@keyframes pulse': {
+                                                '0%': {
+                                                    boxShadow: '0 0 0 0 rgba(255, 107, 0, 0.4)'
+                                                },
+                                                '70%': {
+                                                    boxShadow: '0 0 0 10px rgba(255, 107, 0, 0)'
+                                                },
+                                                '100%': {
+                                                    boxShadow: '0 0 0 0 rgba(255, 107, 0, 0)'
+                                                }
+                                            }
+                                        })
                                     }}
                                 >
-                                    <Typography 
-                                        variant="h5" 
-                                        sx={{ 
-                                            color: user && user.current_round >= 3 ? 'primary.main' : 'grey.500',
-                                            fontWeight: 600,
-                                            mb: 2
-                                        }}
-                                    >
-                                        Round 3
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                        <Typography 
+                                            variant="h5" 
+                                            sx={{ 
+                                                color: user && user.current_round >= 3 ? 'primary.main' : 'grey.500',
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            Round 3
+                                        </Typography>
+                                        {user && user.current_round >= 3 && renderAccessStatus(3)}
+                                    </Box>
                                     <Typography 
                                         variant="body1"
                                         sx={{
@@ -334,28 +487,18 @@ const ParticipantDashboard = () => {
                                             flex: 1
                                         }}
                                     >
-                                        Expert-level programming challenges with advanced algorithms and problem-solving. Available after passing Round 2.
+                                        Final round with DSA and Web Dev tracks. Only the top 10 participants from Round 2 qualify.
                                     </Typography>
-                                    
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                        <Typography 
-                                            variant="caption" 
-                                            sx={{ 
-                                                color: user && user.round3_access_enabled ? 'success.main' : 'error.main',
-                                                fontWeight: 'bold'
-                                            }}
-                                        >
-                                            {user && user.round3_access_enabled ? 'Access Enabled' : 'Access Disabled'}
-                                        </Typography>
-                                    </Box>
-                                    
                                     <Button 
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(3)}
-                                        disabled={!user || user.current_round < 3 || attemptedRounds[3] || !user.round3_access_enabled}
+                                        disabled={user && (!user.qualified_for_round3 && !user.is_admin) || (!roundsAccess.round3?.enabled && !user?.is_admin)}
+                                        sx={{
+                                            opacity: user && user.current_round >= 3 ? 1 : 0.6
+                                        }}
                                     >
-                                        {attemptedRounds[3] ? 'Already Attempted' : !user.round3_access_enabled ? 'Access Disabled' : (user && user.current_round >= 3 ? 'Start Round 3' : 'Locked')}
+                                        {user && !user.qualified_for_round3 && !user.is_admin ? 'Not Qualified' : 'Start Round 3'}
                                     </Button>
                                 </Paper>
                             </Grid>
@@ -377,6 +520,18 @@ const ParticipantDashboard = () => {
                     </Paper>
                 </Container>
             </Box>
+
+            {/* Snackbar for notifications */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

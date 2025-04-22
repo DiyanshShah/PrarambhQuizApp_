@@ -17,190 +17,47 @@ import {
   DialogActions,
   Snackbar,
   Alert,
-  Container
+  Container,
+  Chip
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
-
-// Mock challenges data
-const webChallenges = [
-  {
-    id: 1,
-    title: "Responsive Navigation Bar",
-    description: "Create a responsive navigation bar that collapses into a hamburger menu on mobile devices.",
-    requirements: [
-      "Navigation should be horizontal on desktop",
-      "Should collapse into a hamburger menu on screens smaller than 768px",
-      "Include at least 4 navigation items",
-      "Add hover effects on navigation items",
-      "Implement a smooth toggle animation for the mobile menu"
-    ],
-    htmlTemplate: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Responsive Navigation</title>
-</head>
-<body>
-  <!-- Create your navigation bar here -->
-  <nav>
-    <!-- Your code here -->
-  </nav>
-  
-  <div class="content">
-    <h1>Welcome to My Website</h1>
-    <p>This is a sample content area to show how your navigation works with content.</p>
-  </div>
-</body>
-</html>`,
-    cssTemplate: `/* Your CSS Styles here */
-body {
-  margin: 0;
-  padding: 0;
-  font-family: Arial, sans-serif;
-}
-
-/* Add your navigation styles here */
-
-.content {
-  padding: 20px;
-  text-align: center;
-}`,
-    jsTemplate: `// Optional JavaScript for toggle functionality
-document.addEventListener('DOMContentLoaded', function() {
-  // Your JavaScript here
-});`,
-    expectedResultImage: "https://i.imgur.com/LwCzBEQ.png"
-  },
-  {
-    id: 2,
-    title: "Interactive Contact Form",
-    description: "Create a styled interactive contact form with client-side validation.",
-    requirements: [
-      "Include fields for name, email, subject, and message",
-      "Apply proper styling with CSS",
-      "Implement client-side validation (JS)",
-      "Display error messages for invalid inputs",
-      "Show a success message when the form is valid"
-    ],
-    htmlTemplate: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contact Form</title>
-</head>
-<body>
-  <div class="container">
-    <h1>Contact Us</h1>
-    <!-- Create your form here -->
-    <form id="contactForm">
-      <!-- Your code here -->
-    </form>
-  </div>
-</body>
-</html>`,
-    cssTemplate: `/* Your CSS Styles here */
-body {
-  margin: 0;
-  padding: 0;
-  font-family: Arial, sans-serif;
-  background-color: #f5f5f5;
-}
-
-.container {
-  max-width: 600px;
-  margin: 40px auto;
-  padding: 20px;
-}
-
-/* Add your form styles here */`,
-    jsTemplate: `// Add your validation logic here
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById('contactForm');
-  
-  // Your validation code here
-});`,
-    expectedResultImage: "https://i.imgur.com/e2JzJIN.png"
-  },
-  {
-    id: 3,
-    title: "Image Gallery with Lightbox",
-    description: "Create a responsive image gallery with a lightbox feature when images are clicked.",
-    requirements: [
-      "Display at least 6 images in a grid layout",
-      "Make the grid responsive",
-      "Implement a lightbox that shows the full image when clicked",
-      "Include navigation controls in the lightbox",
-      "Add a close button for the lightbox"
-    ],
-    htmlTemplate: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Gallery</title>
-</head>
-<body>
-  <div class="container">
-    <h1>My Image Gallery</h1>
-    <!-- Create your gallery here -->
-    <div class="gallery">
-      <!-- Your code here -->
-    </div>
-  </div>
-  
-  <!-- Lightbox container -->
-  <div id="lightbox" class="lightbox">
-    <!-- Your lightbox code here -->
-  </div>
-</body>
-</html>`,
-    cssTemplate: `/* Your CSS Styles here */
-body {
-  margin: 0;
-  padding: 0;
-  font-family: Arial, sans-serif;
-  background-color: #f5f5f5;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 40px auto;
-  padding: 20px;
-}
-
-/* Add your gallery and lightbox styles here */`,
-    jsTemplate: `// Add your lightbox functionality here
-document.addEventListener('DOMContentLoaded', function() {
-  // Your JavaScript here
-});`,
-    expectedResultImage: "https://i.imgur.com/8ZZ7QmD.png"
-  }
-];
+import { webChallenges } from '../data/webChallenges';
 
 // Function to submit challenge (real implementation)
-const submitChallenge = async (challengeId, html, css, js) => {
+const submitChallenge = async (challengeId, html, css, js, isAutoSubmission = false) => {
   try {
     // Find the challenge by ID to get its name safely
     const challenge = webChallenges.find(c => c.id === challengeId) || webChallenges[0];
     
-    const response = await axios.post('http://localhost:5000/api/round3/submit-web', {
+    const response = await axios.post('/api/round3/submit-web', {
       user_id: JSON.parse(localStorage.getItem('user')).id,
       challenge_id: challengeId,
       challenge_name: challenge.title,
       html_code: html,
       css_code: css,
-      js_code: js
+      js_code: js,
+      is_auto_submission: isAutoSubmission
     });
     
     return {
       success: response.data.success,
-      message: "Solution submitted successfully! It will be reviewed by an admin."
+      message: "Solution submitted successfully! It will be reviewed by an admin.",
+      score: response.data.score,
+      qualified_for_next: response.data.qualified_for_next
     };
   } catch (error) {
     console.error('Error submitting web challenge:', error);
+    
+    // Check if the error is due to round not being enabled
+    if (error.response?.data?.round_not_enabled) {
+      return {
+        success: false,
+        message: "Round 3 is currently not enabled by the administrator.",
+        round_not_enabled: true
+      };
+    }
+    
     return {
       success: false,
       message: error.response?.data?.error || "Error submitting challenge. Please try again."
@@ -247,6 +104,25 @@ const Round3Web = () => {
     severity: 'info'
   });
   const [completedChallenges, setCompletedChallenges] = useState([]);
+  const [roundEnabled, setRoundEnabled] = useState(false);
+  const [waitingForAccess, setWaitingForAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [isAccessDisabledAlert, setIsAccessDisabledAlert] = useState(false);
+
+  // Function to check if Round 3 is enabled
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('/api/rounds/access');
+      if (response.data && response.data.round3) {
+        setRoundEnabled(response.data.round3.enabled);
+        return response.data.round3.enabled;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking round access:', error);
+      return false;
+    }
+  };
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -259,21 +135,6 @@ const Round3Web = () => {
     // Check if user has access to Round 3
     if (parsedUser.current_round < 3) {
       navigate('/participant-dashboard');
-      return;
-    }
-    
-    // Check if quiz access is enabled for round 3
-    if (!parsedUser.round3_access_enabled) {
-      setSnackbar({
-        open: true,
-        message: 'Quiz access for Round 3 is currently disabled by the admin. Please return to the dashboard and try again later.',
-        severity: 'warning'
-      });
-      
-      // Redirect after 3 seconds
-      setTimeout(() => {
-        navigate('/participant-dashboard');
-      }, 3000);
       return;
     }
     
@@ -301,40 +162,187 @@ const Round3Web = () => {
 
     setCurrentUser(parsedUser);
     
-    // Check for completed challenges
-    const checkCompletedChallenges = async () => {
-      try {
-        const response = await axios.get(`http://localhost:5000/api/round3/submissions?user_id=${parsedUser.id}&track_type=web`);
-        if (response.data && response.data.submissions) {
-          const completed = response.data.submissions.map(sub => parseInt(sub.challenge_id));
-          setCompletedChallenges(completed);
-          
-          // Check if all challenges are completed
-          if (completed.length === webChallenges.length && completed.length > 0) {
-            setOpenDialog(true);
-          } else if (completed.length > 0) {
-            // Find the first uncompleted challenge
-            for (let i = 0; i < webChallenges.length; i++) {
-              if (!completed.includes(webChallenges[i].id)) {
-                selectChallenge(i);
-                break;
+    // Check if Round 3 is enabled
+    const checkAccess = async () => {
+      const isEnabled = await checkRoundAccess();
+      
+      if (!isEnabled && !parsedUser.is_admin) {
+        setWaitingForAccess(true);
+        setSnackbar({
+          open: true,
+          message: 'Round 3 is not yet enabled by the administrator. Please wait for access.',
+          severity: 'warning'
+        });
+        setLoading(false);
+      } else {
+        // Round is enabled or user is admin
+        // Check for completed challenges
+        const checkCompletedChallenges = async () => {
+          try {
+            const userId = JSON.parse(localStorage.getItem('user')).id;
+            const response = await axios.get(`/api/round3/submissions?user_id=${userId}&track_type=web`);
+            if (response.data && response.data.submissions) {
+              const completed = response.data.submissions.map(sub => parseInt(sub.challenge_id));
+              setCompletedChallenges(completed);
+              
+              // Check if all challenges are completed
+              if (completed.length === webChallenges.length && completed.length > 0) {
+                setOpenDialog(true);
+              } else if (completed.length > 0) {
+                // Find the first uncompleted challenge
+                for (let i = 0; i < webChallenges.length; i++) {
+                  if (!completed.includes(webChallenges[i].id)) {
+                    selectChallenge(i);
+                    break;
+                  }
+                }
+              } else {
+                selectChallenge(0);
               }
+            } else {
+              selectChallenge(0);
             }
-          } else {
+          } catch (error) {
+            console.error('Error fetching completed challenges:', error);
             selectChallenge(0);
           }
-        } else {
-          selectChallenge(0);
-        }
-      } catch (error) {
-        console.error('Error fetching completed challenges:', error);
-        selectChallenge(0);
+        };
+        
+        checkCompletedChallenges();
+        setLoading(false);
       }
     };
     
-    checkCompletedChallenges();
-    setLoading(false);
+    checkAccess();
   }, [navigate]);
+
+  // Polling for round access when waiting
+  useEffect(() => {
+    let intervalId;
+    
+    if (waitingForAccess) {
+      intervalId = setInterval(async () => {
+        const isEnabled = await checkRoundAccess();
+        if (isEnabled) {
+          setWaitingForAccess(false);
+          setRoundEnabled(true);
+          
+          // Load challenges once access is granted
+          try {
+            const userId = JSON.parse(localStorage.getItem('user')).id;
+            const response = await axios.get(`/api/round3/submissions?user_id=${userId}&track_type=web`);
+            if (response.data && response.data.submissions) {
+              const completed = response.data.submissions.map(sub => parseInt(sub.challenge_id));
+              setCompletedChallenges(completed);
+              
+              if (completed.length === webChallenges.length && completed.length > 0) {
+                setOpenDialog(true);
+              } else if (completed.length > 0) {
+                // Find the first uncompleted challenge
+                for (let i = 0; i < webChallenges.length; i++) {
+                  if (!completed.includes(webChallenges[i].id)) {
+                    selectChallenge(i);
+                    break;
+                  }
+                }
+              } else {
+                selectChallenge(0);
+              }
+            } else {
+              selectChallenge(0);
+            }
+          } catch (error) {
+            console.error('Error fetching completed challenges:', error);
+            selectChallenge(0);
+          }
+          
+          setSnackbar({
+            open: true,
+            message: 'Round 3 access granted! You can now participate.',
+            severity: 'success'
+          });
+        }
+      }, 10000); // Check every 10 seconds
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [waitingForAccess]);
+
+  // Enhanced access check polling - will auto-submit and redirect when access is revoked
+  useEffect(() => {
+    if (waitingForAccess || submitting) return;
+    
+    let intervalId;
+    
+    // Only set up polling if we're actively working on a challenge
+    intervalId = setInterval(async () => {
+      const isEnabled = await checkRoundAccess();
+      
+      if (!isEnabled && !JSON.parse(localStorage.getItem('user')).is_admin) {
+        // Round access was revoked while the participant was working on a challenge
+        clearInterval(intervalId);
+        
+        // Show notification
+        setSnackbar({
+          open: true,
+          message: 'Round 3 access has been revoked by the administrator. Your solution will be submitted for scoring.',
+          severity: 'warning'
+        });
+        
+        // Auto-submit the current challenge with scoring
+        try {
+          const challenge = webChallenges[currentChallenge];
+          
+          // Only submit if there's substantial work (non-default content)
+          if ((htmlCode && htmlCode !== challenge.htmlTemplate) || 
+              (cssCode && cssCode !== challenge.cssTemplate) || 
+              (jsCode && jsCode !== challenge.jsTemplate)) {
+            
+            console.log("Auto-submitting web challenge due to round access revocation");
+            const result = await submitChallenge(
+              challenge.id, 
+              htmlCode, 
+              cssCode, 
+              jsCode, 
+              true // Indicate this is an auto-submission for scoring
+            );
+            
+            // Update completed challenges
+            if (!completedChallenges.includes(challenge.id)) {
+              setCompletedChallenges([...completedChallenges, challenge.id]);
+            }
+            
+            // Show score notification if response includes score info
+            if (result && result.score !== undefined) {
+              setSnackbar({
+                open: true,
+                message: `Solution submitted and scored: ${result.score} points. ${result.qualified_for_next ? 'You have qualified for the next round!' : ''}`,
+                severity: 'info'
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error auto-submitting challenge:", error);
+          setSnackbar({
+            open: true,
+            message: 'Error submitting your solution. Your progress may not be saved.',
+            severity: 'error'
+          });
+        }
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          navigate('/participant-dashboard');
+        }, 3000);
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [waitingForAccess, submitting, currentChallenge, htmlCode, cssCode, jsCode, navigate, completedChallenges]);
 
   const handleEditorTabChange = (_, newValue) => {
     setEditorTab(newValue);
@@ -389,8 +397,31 @@ const Round3Web = () => {
     setSubmitting(true);
     
     try {
+      // Check if round is still enabled before submitting
+      const isEnabled = await checkRoundAccess();
+      if (!isEnabled && !JSON.parse(localStorage.getItem('user')).is_admin) {
+        setSnackbar({
+          open: true,
+          message: 'Round 3 is currently disabled by the administrator. Please try again later.',
+          severity: 'error'
+        });
+        setSubmitting(false);
+        return;
+      }
+      
       const challenge = webChallenges[currentChallenge];
       const result = await submitChallenge(challenge.id, htmlCode, cssCode, jsCode);
+      
+      if (result.round_not_enabled) {
+        setWaitingForAccess(true);
+        setSnackbar({
+          open: true,
+          message: 'Round 3 has been disabled. Please wait until it is enabled again.',
+          severity: 'warning'
+        });
+        setSubmitting(false);
+        return;
+      }
       
       setSnackbar({
         open: true,
@@ -452,10 +483,74 @@ const Round3Web = () => {
     navigate('/participant-dashboard');
   };
 
+  // Start polling for round access status
+  useEffect(() => {
+    let intervalId;
+    
+    if (currentUser && !currentUser.is_admin) {
+      // Set up polling
+      intervalId = setInterval(async () => {
+        const enabled = await checkRoundAccess();
+        
+        // If access status changed to disabled, show alert and prepare for redirect
+        if (roundEnabled && !enabled) {
+          setRoundEnabled(false);
+          setIsAccessDisabledAlert(true);
+          
+          // After 5 seconds, redirect to dashboard
+          setTimeout(() => {
+            navigate('/participant-dashboard', { state: { 
+              message: 'Round 3 access has been revoked by the administrator.',
+              severity: 'warning'
+            }});
+          }, 5000);
+        }
+        // If access status changed to enabled
+        else if (!roundEnabled && enabled) {
+          setRoundEnabled(true);
+          setSnackbar({
+            open: true,
+            message: 'Round 3 is now enabled! You can submit your solutions.',
+            severity: 'success'
+          });
+        }
+      }, 5000); // Check every 5 seconds
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [currentUser, roundEnabled, navigate]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
+      </Box>
+    );
+  }
+  
+  if (waitingForAccess) {
+    return (
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
+        <Navbar isAdmin={false} />
+        <Paper elevation={3} sx={{ p: 4, maxWidth: 600, textAlign: 'center' }}>
+          <Typography variant="h5" gutterBottom>Waiting for Round 3 Access</Typography>
+          <Typography variant="body1" sx={{ mb: 3 }}>
+            Round 3 is not yet enabled by the administrator. Please check back later.
+          </Typography>
+          <CircularProgress sx={{ mb: 3 }} />
+          <Typography variant="body2" color="text.secondary">
+            The page will automatically update when Round 3 is enabled.
+          </Typography>
+          <Button 
+            variant="contained" 
+            onClick={() => navigate('/participant-dashboard')}
+            sx={{ mt: 3 }}
+          >
+            Return to Dashboard
+          </Button>
+        </Paper>
       </Box>
     );
   }
@@ -777,6 +872,19 @@ const Round3Web = () => {
             Return to Dashboard
           </Button>
         </DialogActions>
+      </Dialog>
+      
+      {/* Access disabled alert */}
+      <Dialog
+        open={isAccessDisabledAlert}
+        aria-labelledby="access-revoked-dialog"
+      >
+        <DialogTitle id="access-revoked-dialog">Round Access Revoked</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Round 3 access has been revoked by the administrator. You will be redirected to the dashboard in 5 seconds.
+          </DialogContentText>
+        </DialogContent>
       </Dialog>
       
       {/* Snackbar for notifications */}

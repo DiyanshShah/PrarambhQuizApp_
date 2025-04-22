@@ -10,7 +10,6 @@ import Round3DSA from './components/Round3DSA';
 import Round3Web from './components/Round3Web';
 import Leaderboard from './components/Leaderboard';
 import Results from './components/Results';
-import WaitingRoom from './components/WaitingRoom';
 import { ThemeProvider, createTheme } from '@mui/material';
 import { CssBaseline } from '@mui/material';
 
@@ -175,10 +174,9 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
-          <Route path="/waiting-room/:roundNumber" element={<WaitingRoom />} />
           <Route path="/round-1" element={<Round1 />} />
           <Route path="/round-2" element={<Round2 />} />
-          <Route path="/round-3" element={<Round3 />} />
+          <Route path="/round-3" element={<Navigate to="/round3" replace />} />
           <Route path="/round3" element={<Round3Selection />} />
           <Route path="/round3/dsa/:problemId" element={<Round3DSA />} />
           <Route path="/round3/dsa" element={<Navigate to="/round3/dsa/1" replace />} />

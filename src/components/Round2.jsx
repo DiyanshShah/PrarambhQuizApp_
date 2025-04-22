@@ -4,7 +4,8 @@ import {
   Container, Typography, Box, Paper, Button, 
   Radio, RadioGroup, FormControlLabel, FormControl, 
   CircularProgress, Dialog, DialogTitle, DialogContent, 
-  DialogContentText, DialogActions
+  DialogContentText, DialogActions,
+  Alert
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
@@ -20,6 +21,8 @@ const Round2 = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
+  const [isRoundEnabled, setIsRoundEnabled] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalQuestions = 20;
 
@@ -37,19 +40,70 @@ const Round2 = () => {
         return;
       }
       
-      // Check if quiz access is enabled for round 2
-      if (!parsedUser.round2_access_enabled) {
-        setDialogMessage('Quiz access for Round 2 is currently disabled by the admin. Please return to the dashboard and try again later.');
-        setDialogOpen(true);
-        setTimeout(() => navigate('/participant-dashboard'), 3000);
-        return;
-      }
-      
       setUser(parsedUser);
     } else {
       navigate('/login');
     }
   }, [navigate]);
+
+  // Check if round is still enabled
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/rounds/access');
+      return response.data?.round2?.enabled || false;
+    } catch (error) {
+      console.error('Error checking round access:', error);
+      return false;
+    }
+  };
+
+  // Start polling for round access status
+  useEffect(() => {
+    if (!user || isSubmitting) return;
+    
+    let intervalId;
+    
+    // Initial check
+    checkRoundAccess().then(enabled => {
+      setIsRoundEnabled(enabled);
+      
+      if (!enabled && user && !user.is_admin) {
+        // Round was disabled, auto-submit
+        handleRoundDisabled();
+      }
+    });
+    
+    // Set up polling
+    intervalId = setInterval(async () => {
+      const enabled = await checkRoundAccess();
+      setIsRoundEnabled(enabled);
+      
+      if (!enabled && user && !user.is_admin) {
+        // Round was disabled, auto-submit
+        handleRoundDisabled();
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user, isSubmitting]);
+
+  // Handle round being disabled during participation
+  const handleRoundDisabled = () => {
+    if (isSubmitting) return;
+    
+    console.log("Round 2 access revoked! Auto-submitting...");
+    
+    // Show dialog
+    setDialogMessage("Round 2 access has been revoked by the administrator. Your progress will be automatically submitted.");
+    setDialogOpen(true);
+    
+    // Auto-submit after a short delay
+    setTimeout(() => {
+      submitResults(true);
+    }, 2000);
+  };
 
   // Load round 2 questions
   useEffect(() => {
@@ -61,7 +115,7 @@ const Round2 = () => {
           setQuestions(response.data);
           setLoading(false);
           setTimeLeft(60);
-          setCurrentQuestionIndex(0);
+          setCurrentQuestionIndex(-1); // Start at introduction screen
           setScore(0);
           setSelectedAnswer(null);
         })
@@ -78,7 +132,7 @@ const Round2 = () => {
   // Timer countdown
   useEffect(() => {
     let timer;
-    if (questions.length > 0 && timeLeft > 0) {
+    if (questions.length > 0 && timeLeft > 0 && isRoundEnabled) {
       timer = setTimeout(() => {
         setTimeLeft(prevTime => prevTime - 1);
       }, 1000);
@@ -90,7 +144,7 @@ const Round2 = () => {
     return () => {
       clearTimeout(timer);
     };
-  }, [timeLeft, questions]);
+  }, [timeLeft, questions, isRoundEnabled]);
 
   // Handle answer selection
   const handleAnswerSelect = (index) => {
@@ -118,7 +172,8 @@ const Round2 = () => {
   };
 
   // Submit quiz results to backend
-  const submitResults = async () => {
+  const submitResults = async (isAutoSubmit = false) => {
+    setIsSubmitting(true);
     try {
       // Calculate final score (adding the last answer if selected)
       let finalScore = score;
@@ -152,8 +207,12 @@ const Round2 = () => {
         setUser(response.data.updated_user);
       }
 
-      setDialogMessage(`Quiz completed! Your score: ${finalScore}/${Math.min(totalQuestions, questions.length)}`);
-      setDialogOpen(true);
+      // Only show completion message if not auto-submitted due to access revocation
+      if (!isAutoSubmit) {
+        setDialogMessage(`Quiz completed! Your score: ${finalScore}/${Math.min(totalQuestions, questions.length)}`);
+        setDialogOpen(true);
+      }
+      
       setTimeout(() => {
         navigate('/participant-dashboard');
       }, 3000);
@@ -172,8 +231,36 @@ const Round2 = () => {
       setTimeout(() => {
         navigate('/participant-dashboard');
       }, 3000);
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  // Start the quiz
+  const startQuiz = () => {
+    setCurrentQuestionIndex(0);
+    setTimeLeft(60);
+  };
+
+  // Show special UI when round is disabled
+  if (!isRoundEnabled && user && !user.is_admin && !isSubmitting) {
+    return (
+      <Box sx={{ 
+        width: '100%',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 3
+      }}>
+        <Alert severity="warning" sx={{ width: '80%', maxWidth: '600px' }}>
+          Round 2 has been disabled by the administrator. Your progress is being submitted.
+        </Alert>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   if (loading || !user) {
     return (
@@ -224,7 +311,83 @@ const Round2 = () => {
             flex: 1
           }}
         >
-          {questions.length > 0 ? (
+          {/* Introduction Screen */}
+          {currentQuestionIndex === -1 && questions.length > 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+              <Typography variant="h4" sx={{ color: 'primary.main', mb: 3, fontWeight: 'bold' }}>
+                Welcome to Round 2
+              </Typography>
+              
+              {!isRoundEnabled && user?.is_admin && (
+                <Alert severity="warning" sx={{ mb: 3, width: '100%' }}>
+                  Round 2 is currently disabled for participants. As an admin, you can still proceed.
+                </Alert>
+              )}
+              
+              {isRoundEnabled && (
+                <Alert severity="success" sx={{ mb: 3, width: '100%' }}>
+                  Round 2 is enabled and ready to start!
+                </Alert>
+              )}
+              
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 3,
+                  bgcolor: 'primary.main',
+                  color: 'white',
+                  borderRadius: 2,
+                  mb: 4,
+                  width: '100%'
+                }}
+              >
+                <Typography variant="h6" gutterBottom>
+                  Instructions:
+                </Typography>
+                <Typography variant="body1" align="left" sx={{ mb: 2 }}>
+                  • You will be presented with {Math.min(totalQuestions, questions.length)} image-based questions.
+                </Typography>
+                <Typography variant="body1" align="left" sx={{ mb: 2 }}>
+                  • You have 60 seconds to answer each question.
+                </Typography>
+                <Typography variant="body1" align="left" sx={{ mb: 2 }}>
+                  • Once you move to the next question, you cannot go back.
+                </Typography>
+                <Typography variant="body1" align="left">
+                  • Your final score will determine if you qualify for Round 3.
+                </Typography>
+              </Paper>
+              
+              <Box sx={{ mt: 3, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={startQuiz}
+                  disabled={!isRoundEnabled && !user?.is_admin}
+                  sx={{ 
+                    px: 6, 
+                    py: 1.5, 
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  {isRoundEnabled || user?.is_admin ? 'Start Round 2' : 'Waiting for Access...'}
+                </Button>
+              </Box>
+              
+              {user?.is_admin && (
+                <Button
+                  variant="outlined"
+                  onClick={() => navigate('/admin-dashboard')}
+                  sx={{ mt: 3 }}
+                >
+                  Return to Admin Dashboard
+                </Button>
+              )}
+            </Box>
+          )}
+          
+          {/* Quiz Questions */}
+          {currentQuestionIndex >= 0 && questions.length > 0 ? (
             <>
               <Box sx={{ 
                 display: 'flex', 
@@ -366,7 +529,7 @@ const Round2 = () => {
                 </>
               )}
             </>
-          ) : (
+          ) : questions.length === 0 && currentQuestionIndex === -1 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
               <Typography variant="h5" sx={{ color: 'primary.main', mb: 3 }}>
                 No questions available for Round 2
@@ -379,7 +542,7 @@ const Round2 = () => {
                 Return to Dashboard
               </Button>
             </Box>
-          )}
+          ) : null}
         </Paper>
       </Container>
 

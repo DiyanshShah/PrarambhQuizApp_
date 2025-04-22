@@ -16,10 +16,10 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 
 // Animated components using motion.create for framer-motion v12
-const MotionContainer = motion.create(Container);
-const MotionPaper = motion.create(Paper);
-const MotionBox = motion.create(Box);
-const MotionTypography = motion.create(Typography);
+const MotionContainer = motion(Container);
+const MotionPaper = motion(Paper);
+const MotionBox = motion(Box);
+const MotionTypography = motion(Typography);
 
 // Styled components
 const LoginButton = styled(Button)(({ theme }) => ({

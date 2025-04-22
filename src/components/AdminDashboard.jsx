@@ -3,7 +3,7 @@ import {
   Container, Typography, Box, Paper, TextField, Button, 
   FormControl, InputLabel, Select, MenuItem, Grid, 
   FormHelperText, Snackbar, Alert, RadioGroup, Radio, FormControlLabel,
-  Switch, Card, CardContent, Divider
+  Switch, FormGroup, Card, CardContent, Divider, CircularProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -11,10 +11,10 @@ import Navbar from './Navbar';
 import { motion } from 'framer-motion';
 
 // Create animated components
-const MotionPaper = motion.create(Paper);
-const MotionBox = motion.create(Box);
-const MotionGrid = motion.create(Grid);
-const MotionTypography = motion.create(Typography);
+const MotionPaper = motion(Paper);
+const MotionBox = motion(Box);
+const MotionGrid = motion(Grid);
+const MotionTypography = motion(Typography);
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -22,13 +22,7 @@ const AdminDashboard = () => {
     const [showQuestionForm, setShowQuestionForm] = useState(false);
     const [showRound2QuestionForm, setShowRound2QuestionForm] = useState(false);
     const [showRound3Submissions, setShowRound3Submissions] = useState(false);
-    
-    // Add state for quiz access control
-    const [showAccessControl, setShowAccessControl] = useState(false);
-    const [round1Access, setRound1Access] = useState(false);
-    const [round2Access, setRound2Access] = useState(false);
-    const [round3Access, setRound3Access] = useState(false);
-    const [isUpdatingAccess, setIsUpdatingAccess] = useState(false);
+    const [showRoundAccessManager, setShowRoundAccessManager] = useState(false);
     
     // Form states for Round 1
     const [language, setLanguage] = useState('');
@@ -54,100 +48,92 @@ const AdminDashboard = () => {
         severity: 'success'
     });
     
-    // New states for Round 3
+    // States for Round 3
     const [round3Submissions, setRound3Submissions] = useState([]);
     const [selectedSubmission, setSelectedSubmission] = useState(null);
     const [submissionScore, setSubmissionScore] = useState(0);
     const [isSubmissionScoring, setIsSubmissionScoring] = useState(false);
     
+    // State for rounds access
+    const [roundsAccess, setRoundsAccess] = useState({
+        round1: { enabled: false },
+        round2: { enabled: false },
+        round3: { enabled: false }
+    });
+    const [updatingAccess, setUpdatingAccess] = useState(false);
+    
     useEffect(() => {
-        // Check if user is logged in and is admin
+        // Check if the user is logged in and is an admin
         const loggedInUser = localStorage.getItem('user');
         if (loggedInUser) {
-            const userObj = JSON.parse(loggedInUser);
-            if (!userObj.is_admin) {
+            const parsedUser = JSON.parse(loggedInUser);
+            if (!parsedUser.is_admin) {
+                // If not an admin, redirect to participant dashboard
                 navigate('/participant-dashboard');
                 return;
             }
-            setUser(userObj);
+            setUser(parsedUser);
             
-            // Don't call fetchQuizAccessStatus here, it will be triggered after user is set
+            // Fetch round access data
+            fetchRoundsAccess();
         } else {
+            // If not logged in, redirect to login page
             navigate('/login');
         }
     }, [navigate]);
     
-    // Add a separate effect to fetch quiz access status when user is available
-    useEffect(() => {
-        if (user) {
-            fetchQuizAccessStatus();
-        }
-    }, [user]);
-    
-    // Add function to fetch current quiz access status
-    const fetchQuizAccessStatus = async () => {
+    const fetchRoundsAccess = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/admin/participants', {
-                params: {
-                    admin_id: user.id
-                }
-            });
-            const participants = response.data.participants;
-            
-            if (participants && participants.length > 0) {
-                // Get the round-specific access status from the first participant
-                // Assuming all participants have the same access status
-                setRound1Access(participants[0].round1_access_enabled);
-                setRound2Access(participants[0].round2_access_enabled);
-                setRound3Access(participants[0].round3_access_enabled);
-            }
+            const response = await axios.get('http://localhost:5000/api/rounds/access');
+            setRoundsAccess(response.data);
         } catch (error) {
-            console.error('Error fetching quiz access status:', error);
+            console.error('Error fetching rounds access:', error);
             setSnackbar({
                 open: true,
-                message: 'Failed to fetch quiz access status',
+                message: 'Failed to fetch rounds access status',
                 severity: 'error'
             });
         }
     };
-    
-    // Add function to toggle quiz access for a specific round
-    const toggleQuizAccess = async (roundNumber, enableAccess) => {
+
+    const toggleRoundAccess = async (roundNumber, enabled) => {
+        if (!user) return;
+        
+        setUpdatingAccess(true);
         try {
-            setIsUpdatingAccess(true);
-            
-            const response = await axios.post('http://localhost:5000/api/toggle-quiz-access', {
-                admin_id: user.id,
+            const response = await axios.post('http://localhost:5000/api/admin/rounds/access', {
+                admin_user_id: user.id,
                 round_number: roundNumber,
-                enable_access: enableAccess
+                is_enabled: enabled
             });
             
-            if (response.data.success) {
-                // Update local state based on the round
-                if (roundNumber === 1) setRound1Access(enableAccess);
-                if (roundNumber === 2) setRound2Access(enableAccess);
-                if (roundNumber === 3) setRound3Access(enableAccess);
-                
-                setSnackbar({
-                    open: true,
-                    message: response.data.message,
-                    severity: 'success'
-                });
-            } else {
-                throw new Error('Failed to update quiz access');
-            }
-        } catch (error) {
-            console.error('Error updating quiz access:', error);
+            // Update local state with the new access status
+            const updatedRoundsAccess = { ...roundsAccess };
+            updatedRoundsAccess[`round${roundNumber}`].enabled = enabled;
+            setRoundsAccess(updatedRoundsAccess);
+            
             setSnackbar({
                 open: true,
-                message: error.response?.data?.error || 'Failed to update quiz access',
+                message: `Round ${roundNumber} ${enabled ? 'enabled' : 'disabled'} successfully`,
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error updating round access:', error);
+            setSnackbar({
+                open: true,
+                message: `Failed to ${enabled ? 'enable' : 'disable'} Round ${roundNumber}`,
                 severity: 'error'
             });
         } finally {
-            setIsUpdatingAccess(false);
+            setUpdatingAccess(false);
         }
     };
-    
+
+    const handleCloseSnackbar = () => {
+        setSnackbar({ ...snackbar, open: false });
+    };
+
+    // Existing utility functions for question management
     const handleOptionChange = (index, value) => {
         const newOptions = [...options];
         newOptions[index] = value;
@@ -325,11 +311,50 @@ const AdminDashboard = () => {
         }
     };
     
-    const handleCloseSnackbar = () => {
-        setSnackbar({...snackbar, open: false});
+    const handleSubmissionScoreChange = (event) => {
+        // Only allow +4 or -1 as values
+        const value = parseInt(event.target.value);
+        if (value === 4 || value === -1) {
+            setSubmissionScore(value);
+        }
+    };
+ 
+    const submitScore = async (submissionId) => {
+        setIsSubmissionScoring(true);
+        try {
+            await axios.post(`http://localhost:5000/api/admin/score-round3`, {
+                submissionId,
+                score: submissionScore
+            });
+             
+            // Update local state
+            setRound3Submissions(
+                round3Submissions.map(sub => 
+                    sub.id === submissionId ? {...sub, score: submissionScore, scored: true} : sub
+                )
+            );
+             
+            setSnackbar({
+                open: true,
+                message: 'Submission scored successfully!',
+                severity: 'success'
+            });
+             
+            // Reset selection
+            setSelectedSubmission(null);
+        } catch (error) {
+            console.error('Error scoring submission:', error);
+            setSnackbar({
+                open: true,
+                message: 'Failed to score submission',
+                severity: 'error'
+            });
+        } finally {
+            setIsSubmissionScoring(false);
+        }
     };
 
-    // Animation variants
+    // Animations
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -399,48 +424,17 @@ const AdminDashboard = () => {
         setSelectedSubmission(submission);
     };
 
-    const handleSubmissionScoreChange = (event) => {
-        // Only allow +4 or -1 as values
-        const value = parseInt(event.target.value);
-        if (value === 4 || value === -1) {
-            setSubmissionScore(value);
-        }
+    // Other existing functions for form handling...
+
+    const showAccessManager = () => {
+        setShowRoundAccessManager(true);
+        setShowQuestionForm(false);
+        setShowRound2QuestionForm(false);
+        setShowRound3Submissions(false);
+        fetchRoundsAccess();
     };
 
-    const submitScore = async (submissionId) => {
-        setIsSubmissionScoring(true);
-        try {
-            await axios.post(`http://localhost:5000/api/admin/score-round3`, {
-                submissionId,
-                score: submissionScore
-            });
-            
-            // Update local state
-            setRound3Submissions(
-                round3Submissions.map(sub => 
-                    sub.id === submissionId ? {...sub, score: submissionScore, scored: true} : sub
-                )
-            );
-            
-            setSnackbar({
-                open: true,
-                message: 'Submission scored successfully!',
-                severity: 'success'
-            });
-            
-            // Reset selection
-            setSelectedSubmission(null);
-        } catch (error) {
-            console.error('Error scoring submission:', error);
-            setSnackbar({
-                open: true,
-                message: 'Failed to score submission',
-                severity: 'error'
-            });
-        } finally {
-            setIsSubmissionScoring(false);
-        }
-    };
+    // Other existing show/hide functions...
 
     return (
         <Box sx={{ 
@@ -522,311 +516,329 @@ const AdminDashboard = () => {
                             />
                         </MotionTypography>
                         
-                        <MotionGrid container spacing={4} sx={{ mb: 6 }}>
-                            <MotionGrid 
-                                item xs={12} md={4}
+                        {/* Action Buttons */}
+                        <Grid 
+                            container 
+                            spacing={3} 
+                            sx={{ mb: 6 }}
+                        >
+                            {/* Add Round 1 Question Card */}
+                            <Grid item xs={12} sm={6} md={3}>
+                                <MotionBox
                                 custom={0}
                                 variants={cardVariants}
+                                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                    whileTap={{ scale: 0.98 }}
                             >
-                                <MotionPaper
-                                    elevation={0}
+                                    <Paper
+                                        elevation={3}
                                     sx={{
-                                        p: 4,
-                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                        borderRadius: 3,
-                                        border: '1px solid',
-                                        borderColor: 'primary.main',
+                                            p: 3,
                                         height: '100%',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        position: 'relative',
-                                        overflow: 'hidden',
-                                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                                            borderRadius: 3,
+                                            bgcolor: 'primary.light',
+                                            color: 'white',
+                                            transition: 'all 0.3s',
+                                            cursor: 'pointer',
                                         '&:hover': {
                                             transform: 'translateY(-5px)',
-                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)',
-                                        }
-                                    }}
-                                    whileHover={{ y: -5 }}
-                                >
-                                    <Typography 
-                                        variant="h5" 
-                                        sx={{ 
-                                            color: 'primary.main',
-                                            fontWeight: 600,
-                                            mb: 2
-                                        }}
-                                    >
-                                        Round 1
-                                    </Typography>
-                                    <Typography 
-                                        variant="body1"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            mb: 3,
-                                            flex: 1
-                                        }}
-                                    >
-                                        Manage Round 1 questions. Add new questions for Python and C programming.
-                                    </Typography>
-                                    <Button 
-                                        variant="contained"
-                                        fullWidth
-                                        onClick={() => {
-                                            setShowQuestionForm(!showQuestionForm);
-                                            setShowRound2QuestionForm(false);
-                                            setShowRound3Submissions(false);
-                                            setShowAccessControl(false);
-                                        }}
-                                        component={motion.button}
-                                        whileHover={{ scale: 1.03 }}
-                                        whileTap={{ scale: 0.97 }}
-                                    >
-                                        {showQuestionForm ? 'Hide Question Form' : 'Add Questions'}
-                                    </Button>
-                                </MotionPaper>
-                            </MotionGrid>
-                            
-                            <MotionGrid 
-                                item xs={12} md={4}
-                                custom={1}
-                                variants={cardVariants}
-                            >
-                                <MotionPaper
-                                    elevation={0}
-                                    sx={{
-                                        p: 4,
-                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                        borderRadius: 3,
-                                        border: '1px solid',
-                                        borderColor: 'primary.main',
-                                        height: '100%',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                                        '&:hover': {
-                                            transform: 'translateY(-5px)',
-                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)',
-                                        }
-                                    }}
-                                    whileHover={{ y: -5 }}
-                                >
-                                    <Typography 
-                                        variant="h5" 
-                                        sx={{ 
-                                            color: 'primary.main',
-                                            fontWeight: 600,
-                                            mb: 2
-                                        }}
-                                    >
-                                        Round 2
-                                    </Typography>
-                                    <Typography 
-                                        variant="body1"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            mb: 3,
-                                            flex: 1
-                                        }}
-                                    >
-                                        Manage Round 2 questions. Add questions with images for both questions and options.
-                                    </Typography>
-                                    <Button 
-                                        variant="contained"
-                                        fullWidth
-                                        onClick={() => {
-                                            setShowQuestionForm(false);
-                                            setShowRound2QuestionForm(true);
-                                            setShowRound3Submissions(false);
-                                            setShowAccessControl(false);
-                                        }}
-                                        component={motion.button}
-                                        whileHover={{ scale: 1.03 }}
-                                        whileTap={{ scale: 0.97 }}
-                                    >
-                                        {showRound2QuestionForm ? 'Hide Question Form' : 'Add Questions'}
-                                    </Button>
-                                </MotionPaper>
-                            </MotionGrid>
-                            
-                            <MotionGrid 
-                                item xs={12} md={4}
-                                custom={2}
-                                variants={cardVariants}
-                            >
-                                <MotionPaper
-                                    elevation={0}
-                                    sx={{
-                                        p: 4,
-                                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                        borderRadius: 3,
-                                        border: '1px solid',
-                                        borderColor: 'primary.main',
-                                        height: '100%',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                                        '&:hover': {
-                                            transform: 'translateY(-5px)',
-                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.2)',
-                                        }
-                                    }}
-                                    whileHover={{ y: -5 }}
-                                >
-                                    <Typography 
-                                        variant="h5" 
-                                        sx={{ 
-                                            color: 'primary.main',
-                                            fontWeight: 600,
-                                            mb: 2
-                                        }}
-                                    >
-                                        Round 3
-                                    </Typography>
-                                    <Typography 
-                                        variant="body1"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            mb: 3,
-                                            flex: 1
-                                        }}
-                                    >
-                                        Review and manually score Round 3 submissions for DSA and Web Development tracks.
-                                    </Typography>
-                                    <Button 
-                                        variant="contained"
-                                        fullWidth
-                                        onClick={() => {
-                                            setShowQuestionForm(false);
-                                            setShowRound2QuestionForm(false);
-                                            setShowRound3Submissions(true);
-                                            setShowAccessControl(false);
-                                            if (!showRound3Submissions) {
-                                                fetchRound3Submissions();
+                                                boxShadow: 6
                                             }
                                         }}
-                                        component={motion.button}
-                                        whileHover={{ scale: 1.03 }}
-                                        whileTap={{ scale: 0.97 }}
+                                        onClick={() => {
+                                            setShowQuestionForm(true);
+                                            setShowRound2QuestionForm(false);
+                                            setShowRound3Submissions(false);
+                                            setShowRoundAccessManager(false);
+                                        }}
                                     >
-                                        {showRound3Submissions ? 'Hide Submissions' : 'View Submissions'}
-                                    </Button>
-                                </MotionPaper>
-                            </MotionGrid>
-                        </MotionGrid>
+                                        <Typography variant="h6" gutterBottom>
+                                            Add Round 1 Question
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ mb: 2, flex: 1 }}>
+                                            Create new multiple-choice questions for Round 1 in Python or C.
+                                        </Typography>
+                                    </Paper>
+                                </MotionBox>
+                            </Grid>
+                            
+                            {/* Add Round 2 Question Card */}
+                            <Grid item xs={12} sm={6} md={3}>
+                                <MotionBox
+                                custom={1}
+                                variants={cardVariants}
+                                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                    whileTap={{ scale: 0.98 }}
+                            >
+                                    <Paper
+                                        elevation={3}
+                                    sx={{
+                                            p: 3,
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                            borderRadius: 3,
+                                            bgcolor: 'secondary.main',
+                                            color: 'white',
+                                            transition: 'all 0.3s',
+                                            cursor: 'pointer',
+                                        '&:hover': {
+                                            transform: 'translateY(-5px)',
+                                                boxShadow: 6
+                                            }
+                                        }}
+                                        onClick={() => {
+                                            setShowRound2QuestionForm(true);
+                                            setShowQuestionForm(false);
+                                            setShowRound3Submissions(false);
+                                            setShowRoundAccessManager(false);
+                                        }}
+                                    >
+                                        <Typography variant="h6" gutterBottom>
+                                            Add Round 2 Question
+                                    </Typography>
+                                        <Typography variant="body2" sx={{ mb: 2, flex: 1 }}>
+                                            Create diagram-based questions for Round 2 with images.
+                                        </Typography>
+                                    </Paper>
+                                </MotionBox>
+                            </Grid>
+                            
+                            {/* View Round 3 Submissions Card */}
+                            <Grid item xs={12} sm={6} md={3}>
+                                <MotionBox
+                                    custom={2}
+                                    variants={cardVariants}
+                                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                    whileTap={{ scale: 0.98 }}
+                                >
+                                    <Paper
+                                        elevation={3}
+                                        sx={{
+                                            p: 3,
+                                            height: '100%',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            borderRadius: 3,
+                                            bgcolor: 'success.main',
+                                            color: 'white',
+                                            transition: 'all 0.3s',
+                                            cursor: 'pointer',
+                                            '&:hover': {
+                                                transform: 'translateY(-5px)',
+                                                boxShadow: 6
+                                            }
+                                        }}
+                                        onClick={() => {
+                                            setShowRound3Submissions(true);
+                                            setShowQuestionForm(false);
+                                            setShowRound2QuestionForm(false);
+                                            setShowRoundAccessManager(false);
+                                            fetchRound3Submissions();
+                                        }}
+                                    >
+                                        <Typography variant="h6" gutterBottom>
+                                            Round 3 Submissions
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ mb: 2, flex: 1 }}>
+                                            View and score participant submissions for Round 3 challenges.
+                                        </Typography>
+                                    </Paper>
+                                </MotionBox>
+                            </Grid>
+                            
+                            {/* Manage Round Access Card */}
+                            <Grid item xs={12} sm={6} md={3}>
+                                <MotionBox
+                                    custom={3}
+                                variants={cardVariants}
+                                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                    whileTap={{ scale: 0.98 }}
+                            >
+                                    <Paper
+                                        elevation={3}
+                                    sx={{
+                                            p: 3,
+                                        height: '100%',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                            borderRadius: 3,
+                                            bgcolor: 'info.main',
+                                            color: 'white',
+                                            transition: 'all 0.3s',
+                                            cursor: 'pointer',
+                                        '&:hover': {
+                                            transform: 'translateY(-5px)',
+                                                boxShadow: 6
+                                            }
+                                        }}
+                                        onClick={showAccessManager}
+                                    >
+                                        <Typography variant="h6" gutterBottom>
+                                            Manage Round Access
+                                    </Typography>
+                                        <Typography variant="body2" sx={{ mb: 2, flex: 1 }}>
+                                            Control participant access to competition rounds.
+                                        </Typography>
+                                    </Paper>
+                                </MotionBox>
+                            </Grid>
+                        </Grid>
                         
-                        {/* Add Quiz Access Control UI */}
-                        {showAccessControl && (
-                            <Paper 
+                        {/* Show Round Access Manager */}
+                        {showRoundAccessManager && (
+                            <Paper
                                 elevation={0}
-                                sx={{ 
-                                    p: { xs: 2, sm: 4 },
-                                    width: '100%',
+                                        sx={{
+                                    p: 4,
                                     mb: 4,
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    borderRadius: 2
+                                    borderRadius: 2,
+                                    borderLeft: '4px solid',
+                                    borderColor: 'info.main',
+                                    bgcolor: 'background.paper'
                                 }}
                             >
-                                <Typography variant="h5" gutterBottom sx={{ mb: 3, color: 'primary.main' }}>
-                                    Quiz Access Control
-                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                                    <Typography variant="h5" sx={{ color: 'info.main', fontWeight: 600 }}>
+                                        Round Access Control
+                                    </Typography>
+                                    <Button 
+                                        variant="outlined" 
+                                        color="inherit"
+                                        onClick={() => setShowRoundAccessManager(false)}
+                                    >
+                                        Close
+                                    </Button>
+                                </Box>
                                 
-                                <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary' }}>
-                                    Enable or disable participant access to each quiz round. When you disable access, any participants currently taking the quiz will be automatically redirected to the dashboard with their progress saved.
+                                <Typography variant="body1" sx={{ mb: 4, textAlign: 'left' }}>
+                                    Enable or disable participant access to each round of the competition. 
+                                    When a round is disabled, participants cannot start or submit answers 
+                                    for that round, even if they are qualified.
                                 </Typography>
                                 
                                 <Grid container spacing={3}>
-                                    <Grid item xs={12}>
-                                        <Card sx={{ 
-                                            mb: 2, 
-                                            border: '1px solid', 
-                                            borderColor: 'divider',
-                                            boxShadow: 'none'
-                                        }}>
-                                            <CardContent sx={{ p: 3 }}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <Box>
-                                                        <Typography variant="h6" component="h3">
-                                                            Round 1 Access
-                                                        </Typography>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            Control access to multiple choice questions (Python & C)
-                                                        </Typography>
-                                                    </Box>
-                                                    <FormControl>
-                                                        <Switch
-                                                            checked={round1Access}
-                                                            onChange={(e) => toggleQuizAccess(1, e.target.checked)}
-                                                            color="primary"
-                                                            disabled={isUpdatingAccess}
-                                                        />
-                                                        <Typography variant="caption" component="span" sx={{ display: 'block', textAlign: 'center' }}>
-                                                            {round1Access ? 'Enabled' : 'Disabled'}
-                                                        </Typography>
-                                                    </FormControl>
-                                                </Box>
+                                    {/* Round 1 Access Control */}
+                                    <Grid item xs={12} md={4}>
+                                        <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
+                                            <CardContent>
+                                                <Typography variant="h6" gutterBottom>
+                                                    Round 1
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                                    Multiple choice questions on programming languages
+                                                </Typography>
+                                                <Divider sx={{ mb: 2 }} />
+                                                <FormGroup>
+                                                    <FormControlLabel 
+                                                        control={
+                                                            <Switch 
+                                                                checked={roundsAccess.round1?.enabled || false} 
+                                                                onChange={(e) => toggleRoundAccess(1, e.target.checked)}
+                                                                disabled={updatingAccess}
+                                                                color="primary"
+                                                            />
+                                                        } 
+                                                        label={
+                                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                                <Typography>
+                                                                    {roundsAccess.round1?.enabled ? "Enabled" : "Disabled"}
+                                                                </Typography>
+                                                                {updatingAccess && <CircularProgress size={16} sx={{ ml: 1 }} />}
+                                                            </Box>
+                                                        }
+                                                    />
+                                                </FormGroup>
+                                                <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
+                                                    {roundsAccess.round1?.enabled 
+                                                        ? `Enabled at: ${new Date(roundsAccess.round1.enabled_at).toLocaleString() || 'N/A'}`
+                                                        : "Round is currently disabled"
+                                                    }
+                                                </Typography>
                                             </CardContent>
                                         </Card>
-                                        
-                                        <Card sx={{ 
-                                            mb: 2, 
-                                            border: '1px solid', 
-                                            borderColor: 'divider',
-                                            boxShadow: 'none'
-                                        }}>
-                                            <CardContent sx={{ p: 3 }}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <Box>
-                                                        <Typography variant="h6" component="h3">
-                                                            Round 2 Access
-                                                        </Typography>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            Control access to the advanced programming challenges
-                                                        </Typography>
-                                                    </Box>
-                                                    <FormControl>
-                                                        <Switch
-                                                            checked={round2Access}
-                                                            onChange={(e) => toggleQuizAccess(2, e.target.checked)}
-                                                            color="primary"
-                                                            disabled={isUpdatingAccess}
-                                                        />
-                                                        <Typography variant="caption" component="span" sx={{ display: 'block', textAlign: 'center' }}>
-                                                            {round2Access ? 'Enabled' : 'Disabled'}
-                                                        </Typography>
-                                                    </FormControl>
-                                                </Box>
+                                    </Grid>
+                                    
+                                    {/* Round 2 Access Control */}
+                                    <Grid item xs={12} md={4}>
+                                        <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
+                                            <CardContent>
+                                                <Typography variant="h6" gutterBottom>
+                                                    Round 2
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                                    Advanced programming challenges with image-based questions
+                                                </Typography>
+                                                <Divider sx={{ mb: 2 }} />
+                                                <FormGroup>
+                                                    <FormControlLabel 
+                                                        control={
+                                                            <Switch 
+                                                                checked={roundsAccess.round2?.enabled || false} 
+                                                                onChange={(e) => toggleRoundAccess(2, e.target.checked)}
+                                                                disabled={updatingAccess}
+                                                                color="primary"
+                                                            />
+                                                        } 
+                                                        label={
+                                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                                <Typography>
+                                                                    {roundsAccess.round2?.enabled ? "Enabled" : "Disabled"}
+                                                                </Typography>
+                                                                {updatingAccess && <CircularProgress size={16} sx={{ ml: 1 }} />}
+                                                            </Box>
+                                                        }
+                                                    />
+                                                </FormGroup>
+                                                <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
+                                                    {roundsAccess.round2?.enabled 
+                                                        ? `Enabled at: ${new Date(roundsAccess.round2.enabled_at).toLocaleString() || 'N/A'}`
+                                                        : "Round is currently disabled"
+                                                    }
+                                                </Typography>
                                             </CardContent>
                                         </Card>
-                                        
-                                        <Card sx={{ 
-                                            border: '1px solid', 
-                                            borderColor: 'divider',
-                                            boxShadow: 'none'
-                                        }}>
-                                            <CardContent sx={{ p: 3 }}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <Box>
-                                                        <Typography variant="h6" component="h3">
-                                                            Round 3 Access
-                                                        </Typography>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            Control access to the expert-level programming challenges
-                                                        </Typography>
-                                                    </Box>
-                                                    <FormControl>
-                                                        <Switch
-                                                            checked={round3Access}
-                                                            onChange={(e) => toggleQuizAccess(3, e.target.checked)}
-                                                            color="primary"
-                                                            disabled={isUpdatingAccess}
-                                                        />
-                                                        <Typography variant="caption" component="span" sx={{ display: 'block', textAlign: 'center' }}>
-                                                            {round3Access ? 'Enabled' : 'Disabled'}
-                                                        </Typography>
-                                                    </FormControl>
-                                                </Box>
+                                    </Grid>
+                                    
+                                    {/* Round 3 Access Control */}
+                                    <Grid item xs={12} md={4}>
+                                        <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
+                                            <CardContent>
+                                                <Typography variant="h6" gutterBottom>
+                                                    Round 3
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                                    Final round with DSA and Web Dev tracks
+                                                </Typography>
+                                                <Divider sx={{ mb: 2 }} />
+                                                <FormGroup>
+                                                    <FormControlLabel 
+                                                        control={
+                                                            <Switch 
+                                                                checked={roundsAccess.round3?.enabled || false} 
+                                                                onChange={(e) => toggleRoundAccess(3, e.target.checked)}
+                                                                disabled={updatingAccess}
+                                                                color="primary"
+                                                            />
+                                                        } 
+                                                        label={
+                                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                                <Typography>
+                                                                    {roundsAccess.round3?.enabled ? "Enabled" : "Disabled"}
+                                                                </Typography>
+                                                                {updatingAccess && <CircularProgress size={16} sx={{ ml: 1 }} />}
+                                                            </Box>
+                                                        }
+                                                    />
+                                                </FormGroup>
+                                                <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
+                                                    {roundsAccess.round3?.enabled 
+                                                        ? `Enabled at: ${new Date(roundsAccess.round3.enabled_at).toLocaleString() || 'N/A'}`
+                                                        : "Round is currently disabled"
+                                                    }
+                                                </Typography>
                                             </CardContent>
                                         </Card>
                                     </Grid>
@@ -1465,59 +1477,41 @@ const AdminDashboard = () => {
                             </Paper>
                         )}
                         
-                        <Box sx={{ mb: 4, display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
+                        <motion.div
+                            variants={buttonVariants}
+                            whileHover="hover"
+                            whileTap="tap"
+                        >
                             <Button 
-                                variant={showQuestionForm ? "contained" : "outlined"}
-                                onClick={() => {
-                                    setShowQuestionForm(true);
-                                    setShowRound2QuestionForm(false);
-                                    setShowRound3Submissions(false);
-                                    setShowAccessControl(false);
-                                }}
-                                sx={{ fontSize: '1rem', px: 3, py: 1 }}
-                            >
-                                Add Round 1 Question
-                            </Button>
-                            <Button 
-                                variant={showRound2QuestionForm ? "contained" : "outlined"}
-                                onClick={() => {
-                                    setShowQuestionForm(false);
-                                    setShowRound2QuestionForm(true);
-                                    setShowRound3Submissions(false);
-                                    setShowAccessControl(false);
-                                }}
-                                sx={{ fontSize: '1rem', px: 3, py: 1 }}
-                            >
-                                Add Round 2 Question
-                            </Button>
-                            <Button 
-                                variant={showRound3Submissions ? "contained" : "outlined"}
-                                onClick={() => {
-                                    setShowQuestionForm(false);
-                                    setShowRound2QuestionForm(false);
-                                    setShowRound3Submissions(true);
-                                    setShowAccessControl(false);
-                                    if (!showRound3Submissions) {
-                                        fetchRound3Submissions();
+                                variant="outlined"
+                                size="large"
+                                onClick={() => navigate('/leaderboard')}
+                                sx={{ 
+                                    px: 6, 
+                                    py: 1.5, 
+                                    fontSize: '1.1rem',
+                                    borderWidth: 2,
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    '&::before': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        width: '100%',
+                                        height: '100%',
+                                        background: 'rgba(37, 99, 235, 0.1)',
+                                        transform: 'translateX(-100%)',
+                                        transition: 'transform 0.4s ease',
+                                    },
+                                    '&:hover::before': {
+                                        transform: 'translateX(0)',
                                     }
                                 }}
-                                sx={{ fontSize: '1rem', px: 3, py: 1 }}
                             >
-                                View Round 3 Submissions
+                                View Leaderboard
                             </Button>
-                            <Button 
-                                variant={showAccessControl ? "contained" : "outlined"}
-                                onClick={() => {
-                                    setShowQuestionForm(false);
-                                    setShowRound2QuestionForm(false);
-                                    setShowRound3Submissions(false);
-                                    setShowAccessControl(true);
-                                }}
-                                sx={{ fontSize: '1rem', px: 3, py: 1 }}
-                            >
-                                Quiz Access Control
-                            </Button>
-                        </Box>
+                        </motion.div>
                     </MotionPaper>
                 </Container>
             </Box>
@@ -1537,44 +1531,6 @@ const AdminDashboard = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
-            
-            {/* Add back the leaderboard button */}
-            <motion.div
-                variants={buttonVariants}
-                whileHover="hover"
-                whileTap="tap"
-                style={{ marginTop: '24px' }}
-            >
-                <Button 
-                    variant="outlined"
-                    size="large"
-                    onClick={() => navigate('/leaderboard')}
-                    sx={{ 
-                        px: 6, 
-                        py: 1.5, 
-                        fontSize: '1.1rem',
-                        borderWidth: 2,
-                        position: 'relative',
-                        overflow: 'hidden',
-                        '&::before': {
-                            content: '""',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            background: 'rgba(37, 99, 235, 0.1)',
-                            transform: 'translateX(-100%)',
-                            transition: 'transform 0.4s ease',
-                        },
-                        '&:hover::before': {
-                            transform: 'translateX(0)',
-                        }
-                    }}
-                >
-                    View Leaderboard
-                </Button>
-            </motion.div>
         </Box>
     );
 };

@@ -199,12 +199,12 @@
   },
   {
     "id": 19,
-    "question": "How do you start a comment in Python?",
+    "question": "How do you create a virtual environment in Python?",
     "options": [
-      "/*",
-      "#",
-      "//",
-      "<!--"
+      "python -env create",
+      "virtualenv env",
+      "pip init env",
+      "python -install venv"
     ],
     "correctAnswer": 1
   },
@@ -218,105 +218,5 @@
       "r+"
     ],
     "correctAnswer": 3
-  },
-  {
-    "question": "What is the output of the following code?\n\nx = 5\ny = 10\nprint(x + y)",
-    "options": ["5", "10", "15", "Error"],
-    "correctAnswer": 2
-  },
-  {
-    "question": "Which of the following is not a valid Python data type?",
-    "options": ["int", "float", "char", "str"],
-    "correctAnswer": 2
-  },
-  {
-    "question": "What is the correct way to create a function in Python?",
-    "options": ["function myFunc():", "def myFunc():", "create myFunc():", "function = myFunc():"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What will be the output of the following code?\n\nx = [1, 2, 3]\nprint(x[1])",
-    "options": ["1", "2", "3", "[2]"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What is the correct syntax to read the first line from a file named 'file.txt'?",
-    "options": ["file('file.txt').read()", "open('file.txt').readline()", "file.open('file.txt').read(1)", "read('file.txt', 1)"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What does the 'len()' function do in Python?",
-    "options": ["Returns the largest item in an iterable", "Returns the length of an object", "Returns the lowest item in an iterable", "Rounds a number to the nearest integer"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What is the output of the following code?\n\na = 'Hello'\nb = 'World'\nprint(a + ' ' + b)",
-    "options": ["HelloWorld", "Hello World", "Hello+World", "Hello_World"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "Which operator is used for exponentiation in Python?",
-    "options": ["^", "**", "//", "%"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What is the correct way to import a module named 'math' in Python?",
-    "options": ["import math", "include math", "#include <math>", "using math"],
-    "correctAnswer": 0
-  },
-  {
-    "question": "What is the output of the following code?\n\nprint(bool(0))",
-    "options": ["0", "1", "True", "False"],
-    "correctAnswer": 3
-  },
-  {
-    "question": "What is the correct way to create a comment in Python?",
-    "options": ["/* comment */", "// comment", "# comment", "<!-- comment -->"],
-    "correctAnswer": 2
-  },
-  {
-    "question": "What is the output of the following code?\n\nprint(list(range(5)))",
-    "options": ["[0, 1, 2, 3, 4]", "[1, 2, 3, 4, 5]", "[5]", "5"],
-    "correctAnswer": 0
-  },
-  {
-    "question": "Which of the following data structures in Python maintains an ordered collection of elements?",
-    "options": ["Dictionary", "Set", "List", "None of the above"],
-    "correctAnswer": 2
-  },
-  {
-    "question": "What is the output of the following code?\n\nprint(10 // 3)",
-    "options": ["3.33", "3", "3.0", "3.333333"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What is the correct way to check if a key exists in a dictionary named 'dict'?",
-    "options": ["key in dict", "dict.haskey(key)", "dict.contains(key)", "key.exists(dict)"],
-    "correctAnswer": 0
-  },
-  {
-    "question": "What is the output of the following code?\n\nx = 'python'\nprint(x[1:4])",
-    "options": ["pyth", "yth", "ytho", "pyt"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "Which method can be used to remove an element from a list in Python?",
-    "options": ["delete()", "remove()", "discard()", "pop()"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What would be the output of the following code?\n\nx = {'a': 1, 'b': 2}\nprint('a' in x)",
-    "options": ["1", "True", "False", "Error"],
-    "correctAnswer": 1
-  },
-  {
-    "question": "What is the correct way to convert an integer to a string in Python?",
-    "options": ["int_to_str(5)", "string(5)", "str(5)", "5.toString()"],
-    "correctAnswer": 2
-  },
-  {
-    "question": "Which of the following is a mutable data type in Python?",
-    "options": ["string", "tuple", "list", "None of the above"],
-    "correctAnswer": 2
   }
 ]

@@ -17,7 +17,8 @@ import {
   DialogActions,
   Alert,
   Snackbar,
-  TextField
+  TextField,
+  Chip
 } from '@mui/material';
 import { dsaProblems } from '../data/dsaProblems';
 import axios from 'axios';
@@ -39,6 +40,10 @@ const Round3DSA = () => {
     severity: 'success'
   });
   const [completedProblems, setCompletedProblems] = useState([]);
+  const [roundEnabled, setRoundEnabled] = useState(false);
+  const [waitingForAccess, setWaitingForAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [isAccessDisabledAlert, setIsAccessDisabledAlert] = useState(false);
   
   // Initialize with default template based on language
   const templates = {
@@ -48,12 +53,27 @@ const Round3DSA = () => {
     c: `#include <stdio.h>\n\n// Your solution here\n\nint main() {\n  // Test your solution\n  return 0;\n}`
   };
 
+  // Function to check if Round 3 is enabled
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('/api/rounds/access');
+      if (response.data && response.data.round3) {
+        setRoundEnabled(response.data.round3.enabled);
+        return response.data.round3.enabled;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking round access:', error);
+      return false;
+    }
+  };
+
   // Check for completed problems
   useEffect(() => {
     const checkCompletedProblems = async () => {
       try {
         const userId = JSON.parse(localStorage.getItem('user')).id;
-        const response = await axios.get(`http://localhost:5000/api/round3/submissions?user_id=${userId}&track_type=dsa`);
+        const response = await axios.get(`/api/round3/submissions?user_id=${userId}&track_type=dsa`);
         if (response.data && response.data.submissions) {
           const completed = response.data.submissions.map(sub => parseInt(sub.challenge_id));
           setCompletedProblems(completed);
@@ -87,21 +107,6 @@ const Round3DSA = () => {
       return;
     }
     
-    // Check if quiz access is enabled for round 3
-    if (!parsedUser.round3_access_enabled) {
-      setSnackbar({
-        open: true,
-        message: 'Quiz access for Round 3 is currently disabled by the admin. Please return to the dashboard and try again later.',
-        severity: 'warning'
-      });
-      
-      // Redirect after 3 seconds
-      setTimeout(() => {
-        navigate('/participant-dashboard');
-      }, 3000);
-      return;
-    }
-    
     // Check if user has selected the DSA track
     if (parsedUser.round3_track !== 'dsa') {
       // If they haven't selected a track yet, send them to selection page
@@ -124,15 +129,135 @@ const Round3DSA = () => {
       return;
     }
     
-    if (problemId && problemId > 0 && problemId <= dsaProblems.length) {
-      setProblem(dsaProblems[problemId - 1]);
-      setCode(templates[language]);
-    } else {
-      navigate('/round3/dsa/1'); // Redirect to first problem if invalid problem ID
+    // Check if Round 3 is enabled
+    const checkAccess = async () => {
+      const isEnabled = await checkRoundAccess();
+      
+      if (!isEnabled && !parsedUser.is_admin) {
+        setWaitingForAccess(true);
+        setSnackbar({
+          open: true,
+          message: 'Round 3 is not yet enabled by the administrator. Please wait for access.',
+          severity: 'warning'
+        });
+      } else {
+        // Round is enabled or user is admin, load problem
+        if (problemId && problemId > 0 && problemId <= dsaProblems.length) {
+          setProblem(dsaProblems[problemId - 1]);
+          setCode(templates[language]);
+        } else {
+          navigate('/round3/dsa/1'); // Redirect to first problem if invalid problem ID
+        }
+      }
+      
+      setLoading(false);
+    };
+    
+    checkAccess();
+  }, [navigate, problemId, language]);
+
+  // Polling for round access when waiting
+  useEffect(() => {
+    let intervalId;
+    
+    if (waitingForAccess) {
+      intervalId = setInterval(async () => {
+        const isEnabled = await checkRoundAccess();
+        if (isEnabled) {
+          setWaitingForAccess(false);
+          setRoundEnabled(true);
+          
+          // Load problem once access is granted
+          if (problemId && problemId > 0 && problemId <= dsaProblems.length) {
+            setProblem(dsaProblems[problemId - 1]);
+            setCode(templates[language]);
+          } else {
+            navigate('/round3/dsa/1');
+          }
+          
+          setSnackbar({
+            open: true,
+            message: 'Round 3 access granted! You can now participate.',
+            severity: 'success'
+          });
+        }
+      }, 10000); // Check every 10 seconds
     }
     
-    setLoading(false);
-  }, [navigate, problemId, language]);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [waitingForAccess, problemId, language, navigate]);
+
+  // Enhanced access check polling - will auto-submit and redirect when access is revoked
+  useEffect(() => {
+    if (waitingForAccess || !problem) return;
+    
+    let intervalId;
+    
+    // Only set up polling if we're not waiting for access and we have a problem loaded
+    intervalId = setInterval(async () => {
+      const isEnabled = await checkRoundAccess();
+      
+      if (!isEnabled && !JSON.parse(localStorage.getItem('user')).is_admin) {
+        // Round access was revoked while the participant was solving a problem
+        clearInterval(intervalId);
+        
+        // Show notification
+        setSnackbar({
+          open: true,
+          message: 'Round 3 access has been revoked by the administrator. Your solution will be submitted for scoring.',
+          severity: 'warning'
+        });
+        
+        try {
+          // Auto-submit the current solution with scoring
+          if (code && code.trim() !== templates[language]) {
+            const response = await axios.post('/api/round3/submit-dsa', {
+              user_id: JSON.parse(localStorage.getItem('user')).id,
+              challenge_id: parseInt(problemId),
+              challenge_name: problem.title,
+              code: code,
+              language: language,
+              auto_submit: true // Flag to indicate this is an auto-submission
+            });
+            
+            console.log("Solution auto-submitted due to round access revocation");
+            
+            // Update completed problems
+            if (!completedProblems.includes(parseInt(problemId))) {
+              setCompletedProblems([...completedProblems, parseInt(problemId)]);
+            }
+            
+            // Show score notification if response includes score info
+            if (response.data && response.data.score !== undefined) {
+              setSnackbar({
+                open: true,
+                message: `Solution submitted and scored: ${response.data.score} points. ${response.data.qualified_for_next ? 'You have qualified for the next round!' : ''}`,
+                severity: 'info'
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error auto-submitting solution:", error);
+          setSnackbar({
+            open: true,
+            message: 'Error submitting your solution. Your progress may not be saved.',
+            severity: 'error'
+          });
+        }
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          navigate('/participant-dashboard');
+        }, 3000);
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [waitingForAccess, problem, problemId, code, language, navigate, completedProblems]);
 
   useEffect(() => {
     // Reset code when language changes
@@ -164,8 +289,20 @@ const Round3DSA = () => {
     setIsRunning(true);
     
     try {
+      // Check if round is still enabled before submitting
+      const isEnabled = await checkRoundAccess();
+      if (!isEnabled && !JSON.parse(localStorage.getItem('user')).is_admin) {
+        setSnackbar({
+          open: true,
+          message: 'Round 3 is currently disabled by the administrator. Please try again later.',
+          severity: 'error'
+        });
+        setIsRunning(false);
+        return;
+      }
+      
       // Submit solution to the backend
-      const response = await axios.post('http://localhost:5000/api/round3/submit-dsa', {
+      const response = await axios.post('/api/round3/submit-dsa', {
         user_id: JSON.parse(localStorage.getItem('user')).id,
         challenge_id: parseInt(problemId),
         challenge_name: problem.title,
@@ -194,11 +331,22 @@ const Round3DSA = () => {
       
     } catch (error) {
       console.error('Error submitting solution:', error);
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.error || 'Error submitting solution. Please try again.',
-        severity: 'error'
-      });
+      
+      // Handle round not enabled error specifically
+      if (error.response?.data?.round_not_enabled) {
+        setWaitingForAccess(true);
+        setSnackbar({
+          open: true,
+          message: 'Round 3 has been disabled. Please wait until it is enabled again.',
+          severity: 'warning'
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: error.response?.data?.error || 'Error submitting solution. Please try again.',
+          severity: 'error'
+        });
+      }
     } finally {
       setIsRunning(false);
     }
@@ -213,10 +361,74 @@ const Round3DSA = () => {
     navigate('/participant-dashboard');
   };
 
+  // Start polling for round access status
+  useEffect(() => {
+    let intervalId;
+    
+    if (roundEnabled && !waitingForAccess && !accessChecked) {
+      // Set up polling
+      intervalId = setInterval(async () => {
+        const enabled = await checkRoundAccess();
+        
+        // If access status changed to disabled, show alert and prepare for redirect
+        if (roundEnabled && !enabled) {
+          setRoundEnabled(false);
+          setIsAccessDisabledAlert(true);
+          
+          // After 5 seconds, redirect to dashboard
+          setTimeout(() => {
+            navigate('/participant-dashboard', { state: { 
+              message: 'Round 3 access has been revoked by the administrator.',
+              severity: 'warning'
+            }});
+          }, 5000);
+        }
+        // If access status changed to enabled
+        else if (!roundEnabled && enabled) {
+          setRoundEnabled(true);
+          setSnackbar({
+            open: true,
+            message: 'Round 3 is now enabled! You can submit your solutions.',
+            severity: 'success'
+          });
+        }
+      }, 5000); // Check every 5 seconds
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [roundEnabled, waitingForAccess, accessChecked, navigate]);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
         <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (waitingForAccess) {
+    return (
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
+        <Navbar isAdmin={false} />
+        <Paper elevation={3} sx={{ p: 4, maxWidth: 600, textAlign: 'center' }}>
+          <Typography variant="h5" gutterBottom>Waiting for Round 3 Access</Typography>
+          <Typography variant="body1" sx={{ mb: 3 }}>
+            Round 3 is not yet enabled by the administrator. Please check back later.
+          </Typography>
+          <CircularProgress sx={{ mb: 3 }} />
+          <Typography variant="body2" color="text.secondary">
+            The page will automatically update when Round 3 is enabled.
+          </Typography>
+          <Button 
+            variant="contained" 
+            onClick={() => navigate('/participant-dashboard')}
+            sx={{ mt: 3 }}
+          >
+            Return to Dashboard
+          </Button>
+        </Paper>
       </Box>
     );
   }
@@ -482,6 +694,19 @@ const Round3DSA = () => {
             Return to Dashboard
           </Button>
         </DialogActions>
+      </Dialog>
+      
+      {/* Access disabled alert */}
+      <Dialog
+        open={isAccessDisabledAlert}
+        aria-labelledby="access-revoked-dialog"
+      >
+        <DialogTitle id="access-revoked-dialog">Round Access Revoked</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Round 3 access has been revoked by the administrator. You will be redirected to the dashboard in 5 seconds.
+          </DialogContentText>
+        </DialogContent>
       </Dialog>
     </Box>
   );

@@ -37,14 +37,6 @@ const Round3 = () => {
         return;
       }
       
-      // Check if quiz access is enabled for round 3
-      if (!parsedUser.round3_access_enabled) {
-        setDialogMessage('Quiz access for Round 3 is currently disabled by the admin. Please return to the dashboard and try again later.');
-        setDialogOpen(true);
-        setTimeout(() => navigate('/participant-dashboard'), 3000);
-        return;
-      }
-      
       setUser(parsedUser);
     } else {
       navigate('/login');

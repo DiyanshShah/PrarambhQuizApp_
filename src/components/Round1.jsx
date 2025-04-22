@@ -24,30 +24,124 @@ const Round1 = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
   const [penaltyPoints, setPenaltyPoints] = useState(0);
+  const [isRoundEnabled, setIsRoundEnabled] = useState(true);
   
   const totalQuestions = 20;
   const gracePeriod = 5 * 60; // 5 minutes in seconds
   const timerRef = useRef(null);
+  const accessCheckRef = useRef(null);
 
   // Load user from localStorage
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
     if (loggedInUser) {
-      const parsedUser = JSON.parse(loggedInUser);
-      
-      // Check if quiz access is enabled for round 1
-      if (!parsedUser.round1_access_enabled) {
-        setDialogMessage('Quiz access for Round 1 is currently disabled by the admin. Please return to the dashboard and try again later.');
-        setDialogOpen(true);
-        setTimeout(() => navigate('/participant-dashboard'), 3000);
-        return;
-      }
-      
-      setUser(parsedUser);
+      setUser(JSON.parse(loggedInUser));
     } else {
       navigate('/login');
     }
-  }, [navigate]);
+    
+    // Check round access on initial load even at language-select stage
+    if (step === 'language-select') {
+      checkRoundAccess().then(enabled => {
+        setIsRoundEnabled(enabled);
+      });
+    }
+  }, [navigate, step]);
+  
+  // Enhanced polling - check access status even during language selection
+  useEffect(() => {
+    let intervalId;
+    
+    // Only poll if on language selection screen or during quiz
+    if ((step === 'language-select' || step === 'quiz') && user && !user.is_admin) {
+      // Set up polling
+      intervalId = setInterval(async () => {
+        const enabled = await checkRoundAccess();
+        
+        // If access status changed, show visual feedback
+        if (enabled !== isRoundEnabled) {
+          setIsRoundEnabled(enabled);
+          
+          // Show dialog if access was revoked during language selection
+          if (!enabled && step === 'language-select') {
+            setDialogMessage("Round 1 access has been revoked by the administrator. Please try again later.");
+            setDialogOpen(true);
+          }
+          
+          // If access was revoked during quiz, handle it
+          if (!enabled && step === 'quiz') {
+            handleRoundDisabled();
+          }
+        }
+      }, 5000); // Check every 5 seconds
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [step, user, isRoundEnabled]);
+
+  // Start polling for round access status when in quiz mode
+  useEffect(() => {
+    let intervalId;
+    
+    if (step === 'quiz') {
+      // Initial check
+      checkRoundAccess().then(enabled => {
+        setIsRoundEnabled(enabled);
+        
+        if (!enabled && user && !user.is_admin) {
+          // Round was disabled, auto-submit
+          handleRoundDisabled();
+        }
+      });
+      
+      // Set up polling
+      intervalId = setInterval(async () => {
+        const enabled = await checkRoundAccess();
+        setIsRoundEnabled(enabled);
+        
+        if (!enabled && user && !user.is_admin) {
+          // Round was disabled, auto-submit
+          handleRoundDisabled();
+        }
+      }, 10000); // Check every 10 seconds
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [step, user]);
+
+  // Check if round is still enabled
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/rounds/access');
+      return response.data?.round1?.enabled || false;
+    } catch (error) {
+      console.error('Error checking round access:', error);
+      return false;
+    }
+  };
+
+  // Handle round being disabled during participation
+  const handleRoundDisabled = () => {
+    console.log("Round access revoked! Auto-submitting...");
+    
+    // Clear any existing intervals
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    
+    // Show dialog
+    setDialogMessage("Round 1 access has been revoked by the administrator. Your progress will be automatically submitted.");
+    setDialogOpen(true);
+    
+    // Auto-submit after a short delay
+    setTimeout(() => {
+      submitResults();
+    }, 2000);
+  };
 
   // Load questions based on selected language
   useEffect(() => {
@@ -186,10 +280,17 @@ const Round1 = () => {
 
       setStep('results');
       setScore(finalScore);
-      setDialogMessage(`Quiz completed! Your raw score: ${totalScore}/${totalQuestions}
-                        Penalty: -${penaltyPoints}
-                        Final Score: ${finalScore}/${totalQuestions}`);
-      setDialogOpen(true);
+      
+      // Only show the completion dialog if we weren't auto-submitted due to access revocation
+      if (isRoundEnabled) {
+        setDialogMessage(`Quiz completed! Your raw score: ${totalScore}/${totalQuestions}
+                          Penalty: -${penaltyPoints}
+                          Final Score: ${finalScore}/${totalQuestions}`);
+        setDialogOpen(true);
+      } else {
+        // If round was disabled, navigate back to dashboard
+        navigate('/participant-dashboard');
+      }
     } catch (error) {
       console.error('Error submitting results:', error);
       
@@ -207,7 +308,9 @@ const Round1 = () => {
       }
       
       setDialogOpen(true);
-      setStep('language-select');
+      setTimeout(() => {
+        navigate('/participant-dashboard');
+      }, 2000);
     }
   };
 
@@ -219,6 +322,18 @@ const Round1 = () => {
   if (!user) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Include additional UI - Show alert when round is disabled
+  if (step === 'quiz' && !isRoundEnabled && user && !user.is_admin) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
+        <Alert severity="warning" sx={{ mb: 3, width: '80%', maxWidth: '600px' }}>
+          Round 1 has been disabled by the administrator. Your progress is being submitted.
+        </Alert>
         <CircularProgress />
       </Box>
     );
@@ -266,6 +381,19 @@ const Round1 = () => {
               >
                 Round 1: Choose Your Language
               </Typography>
+              
+              {!isRoundEnabled && !user?.is_admin && (
+                <Alert severity="warning" sx={{ mb: 3 }}>
+                  Round 1 is currently disabled by the administrator. You can prepare your selection, but you'll need to wait for access to be granted.
+                </Alert>
+              )}
+              
+              {isRoundEnabled && (
+                <Alert severity="success" sx={{ mb: 3 }}>
+                  Round 1 is enabled! You can proceed with the quiz.
+                </Alert>
+              )}
+              
               <Typography 
                 variant="h6"
                 sx={{
@@ -307,7 +435,7 @@ const Round1 = () => {
 
               <Box sx={{ mt: 'auto' }}>
                 <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3 }}>
-                  You will be presented with a random set of 20 questions from our question pool.
+                  You will be presented with all 20 questions at once.
                   <br />You have 20 minutes to complete the entire quiz.
                   <br />After 5 minutes, a penalty of -1 point will be applied for each additional minute.
                 </Typography>
@@ -315,13 +443,14 @@ const Round1 = () => {
                   variant="contained" 
                   size="large"
                   onClick={startQuiz}
+                  disabled={!selectedLanguage || (!isRoundEnabled && !user?.is_admin)}
                   sx={{ 
                     px: 6, 
                     py: 1.5, 
                     fontSize: '1.1rem'
                   }}
                 >
-                  Start Quiz
+                  {isRoundEnabled || user?.is_admin ? 'Start Quiz' : 'Waiting for Access...'}
                 </Button>
               </Box>
             </>

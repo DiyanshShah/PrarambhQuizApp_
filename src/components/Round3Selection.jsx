@@ -11,16 +11,21 @@ import {
   CardContent,
   CardMedia,
   CardActionArea,
+  CardActions,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
   DialogActions,
   Alert,
-  Snackbar
+  Snackbar,
+  CircularProgress,
+  Chip
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
+import CodeIcon from '@mui/icons-material/Code';
+import WebIcon from '@mui/icons-material/Web';
 
 const Round3Selection = () => {
   const navigate = useNavigate();
@@ -28,103 +33,267 @@ const Round3Selection = () => {
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, track: null });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [isRoundEnabled, setIsRoundEnabled] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [isAccessDisabledAlert, setIsAccessDisabledAlert] = useState(false);
+  const [completedProblems, setCompletedProblems] = useState({
+    dsa: [],
+    web: []
+  });
+  const [accessPolling, setAccessPolling] = useState(null);
 
-  // Check if user is authenticated and has access to Round 3
+  // Load user from localStorage and check permissions
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
-    if (!loggedInUser) {
+    if (loggedInUser) {
+      const foundUser = JSON.parse(loggedInUser);
+      setUser(foundUser);
+      
+      // User must be qualified for Round 3
+      if (!foundUser.qualified_for_round3 && !foundUser.is_admin) {
+        navigate('/participant-dashboard');
+      }
+      
+      // If not qualified and not admin, redirect
+      if (foundUser.current_round < 3 && !foundUser.is_admin) {
+        navigate('/participant-dashboard');
+      }
+      
+      // Get completed problems
+      fetchCompletedProblems(foundUser.id);
+    } else {
       navigate('/login');
-      return;
-    }
-
-    const userObj = JSON.parse(loggedInUser);
-    // Check if user has access to Round 3
-    if (userObj.current_round < 3) {
-      navigate('/participant-dashboard');
-      return;
     }
     
-    // Check if quiz access is enabled for round 3
-    if (!userObj.round3_access_enabled) {
-      setSnackbar({
-        open: true,
-        message: 'Quiz access for Round 3 is currently disabled by the admin. Please return to the dashboard and try again later.',
-        severity: 'warning'
+    setLoading(false);
+    
+    return () => {
+      // Clear polling interval on unmount
+      if (accessPolling) {
+        clearInterval(accessPolling);
+      }
+    };
+  }, [navigate]);
+  
+  // Fetch completed problems for this user
+  const fetchCompletedProblems = async (userId) => {
+    try {
+      const response = await axios.get(`/api/round3/submissions?user_id=${userId}`);
+      
+      // Process the submissions to get completed problems by track
+      const completedDSA = response.data.submissions
+        .filter(sub => sub.track_type === 'dsa')
+        .map(sub => sub.challenge_id);
+      
+      const completedWeb = response.data.submissions
+        .filter(sub => sub.track_type === 'web')
+        .map(sub => sub.challenge_id);
+      
+      setCompletedProblems({
+        dsa: completedDSA,
+        web: completedWeb 
       });
       
-      // Redirect after 3 seconds
-      setTimeout(() => {
-        navigate('/participant-dashboard');
-      }, 3000);
-      return;
+      // Check if user has completed all challenges in their selected track
+      const currentUser = JSON.parse(localStorage.getItem('user'));
+      if (currentUser && currentUser.round3_track) {
+        const isTrackCompleted = currentUser.round3_track === 'dsa' ? 
+          completedDSA.length >= 3 : 
+          completedWeb.length >= 3;
+          
+        if (isTrackCompleted) {
+          // If all problems are completed, go to dashboard instead
+          navigate('/participant-dashboard');
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error fetching completed problems:', error);
     }
+  };
+  
+  // Start polling for round access status
+  useEffect(() => {
+    // Initial check
+    checkRoundAccess();
     
-    setUser(userObj);
-    setLoading(false);
-  }, [navigate]);
+    // Set up polling
+    const intervalId = setInterval(() => {
+      checkRoundAccess();
+    }, 5000); // Check every 5 seconds
+    
+    setAccessPolling(intervalId);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
 
+  // Check if round is enabled
+  const checkRoundAccess = async () => {
+    try {
+      const response = await axios.get('/api/rounds/access');
+      setAccessChecked(true);
+      
+      if (response.data && response.data.round3) {
+        setIsRoundEnabled(response.data.round3.enabled);
+        return response.data.round3.enabled;
+      }
+      
+      setIsRoundEnabled(false);
+      return false;
+    } catch (error) {
+      console.error('Error checking round access:', error);
+      setIsRoundEnabled(false);
+      setAccessChecked(true);
+      return false;
+    }
+  };
+
+  // Handle track selection
   const handleTrackSelection = (track) => {
-    // If user already has a track selected, navigate directly
-    if (user.round3_track === track) {
-      navigateToTrack(track);
+    if (!isRoundEnabled && !user?.is_admin) {
+      setSnackbar({
+        open: true,
+        message: 'Round 3 is currently disabled by the administrator.',
+        severity: 'warning'
+      });
       return;
     }
     
-    // If user hasn't selected a track yet, open confirmation dialog
-    if (!user.round3_track) {
-      setConfirmDialog({ open: true, track });
+    // Check if the user has already completed all problems for this track
+    const isTrackCompleted = track === 'dsa' ? 
+      completedProblems.dsa.length >= 3 : 
+      completedProblems.web.length >= 3;
+      
+    if (isTrackCompleted) {
+      setSnackbar({
+        open: true,
+        message: `You have already completed all challenges in the ${track === 'dsa' ? 'DSA' : 'Web Development'} track.`,
+        severity: 'info'
+      });
       return;
     }
     
-    // If user has selected a different track, show error
-    setSnackbar({
+    setConfirmDialog({
       open: true,
-      message: `You have already selected the ${user.round3_track.toUpperCase()} track. You cannot change your selection.`,
-      severity: 'warning'
+      track: track
     });
   };
 
+  // Navigate to selected track
   const navigateToTrack = (track) => {
-    if (track === 'dsa') {
-      navigate('/round3/dsa');
-    } else if (track === 'web') {
-      navigate('/round3/web');
+    if (user && track) {
+      if (track === 'dsa') {
+        navigate('/round3/dsa/1');
+      } else {
+        navigate('/round3/web');
+      }
     }
   };
 
+  // Close the snackbar
+  const closeSnackbar = () => {
+    setSnackbar({
+      ...snackbar,
+      open: false
+    });
+  };
+
+  // Confirm track selection
   const confirmTrackSelection = async () => {
+    const track = confirmDialog.track;
+    setConfirmDialog({ open: false, track: null });
+    
+    if (!track) return;
+    
     try {
-      const response = await axios.post('http://localhost:5000/api/user/set-round3-track', {
+      // Update user's round3_track selection in the database
+      await axios.post('/api/user/set-round3-track', {
         user_id: user.id,
-        track: confirmDialog.track
+        track: track
       });
       
       // Update user in localStorage
-      const updatedUser = response.data.user;
+      const updatedUser = {
+        ...user,
+        round3_track: track
+      };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
       
-      // Close dialog and navigate to selected track
-      setConfirmDialog({ open: false, track: null });
-      navigateToTrack(updatedUser.round3_track);
+      // Navigate to the selected track
+      navigateToTrack(track);
       
     } catch (error) {
-      console.error('Error setting track:', error);
+      console.error('Error setting Round 3 track:', error);
       setSnackbar({
         open: true,
-        message: error.response?.data?.error || 'Failed to set track. Please try again.',
+        message: 'Error setting track preference. Please try again.',
         severity: 'error'
       });
-      setConfirmDialog({ open: false, track: null });
     }
   };
 
-  const closeSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
-  };
+  // If user already has a track selected, navigate directly to that track
+  useEffect(() => {
+    if (user && user.round3_track && !loading) {
+      // Check if the track is completed
+      const isTrackCompleted = user.round3_track === 'dsa' ? 
+        completedProblems.dsa.length >= 3 : 
+        completedProblems.web.length >= 3;
+        
+      if (isTrackCompleted) {
+        // If all problems are completed, go to dashboard instead
+        navigate('/participant-dashboard');
+        return;
+      }
+      
+      // If not completed, navigate to the selected track
+      if (user.round3_track === 'dsa') {
+        navigate('/round3/dsa/1');
+      } else {
+        navigate('/round3/web');
+      }
+    }
+  }, [user, loading, completedProblems, navigate]);
 
+  // Show loading state
   if (loading) {
-    return null;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Show access disabled message
+  if (accessChecked && !isRoundEnabled && !user?.is_admin) {
+    return (
+      <Box sx={{ 
+        width: '100%',
+        minHeight: '100vh',
+        backgroundColor: 'background.default',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <Navbar isAdmin={false} />
+        
+        <Container maxWidth="md" sx={{ mt: 8, textAlign: 'center' }}>
+          <Alert severity="warning" sx={{ mb: 4, p: 2 }}>
+            Round 3 is currently disabled by the administrator. Please check back later.
+          </Alert>
+          
+          <Button 
+            variant="contained"
+            onClick={() => navigate('/participant-dashboard')}
+            sx={{ mt: 3 }}
+          >
+            Return to Dashboard
+          </Button>
+        </Container>
+      </Box>
+    );
   }
 
   return (
@@ -136,116 +305,100 @@ const Round3Selection = () => {
       flexDirection: 'column',
     }}>
       <Navbar isAdmin={false} />
-      <Container maxWidth="md" sx={{ mt: 4, mb: 8 }}>
+      
+      <Container maxWidth="md" sx={{ mt: 8, mb: 8 }}>
         <Paper 
-          elevation={3} 
+          elevation={0}
           sx={{ 
-            p: 6, 
+            p: 5,
+            textAlign: 'center',
+            backgroundColor: 'background.paper',
             borderRadius: 3,
             border: '1px solid',
             borderColor: 'primary.main',
           }}
         >
-          <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+          <Typography 
+            variant="h4" 
+            component="h1" 
+            gutterBottom
+            sx={{
+              color: 'primary.main',
+              fontWeight: 700,
+              mb: 2
+            }}
+          >
             Round 3: Choose Your Track
           </Typography>
           
-          <Box sx={{ mb: 4, mt: 3 }}>
-            <Paper 
-              elevation={0}
-              sx={{ 
-                p: 3, 
-                bgcolor: 'primary.main', 
-                color: 'white',
-                borderRadius: 2
-              }}
-            >
-              <Typography variant="subtitle1" gutterBottom>
-                <strong>Important Note:</strong>
-              </Typography>
-              <Typography variant="body1">
-                In Round 3, you must choose between DSA or Web Development. <strong>You can only participate in one track</strong>, and your choice is permanent. Each correct solution will earn you <strong>+4 points</strong>, while incorrect solutions will result in <strong>-1 point</strong>.
-              </Typography>
-            </Paper>
-          </Box>
-          
-          {user.round3_track && (
-            <Alert 
-              severity="info" 
-              sx={{ mb: 4 }}
-            >
-              You have selected the <strong>{user.round3_track === 'dsa' ? 'Data Structures & Algorithms' : 'Web Development'}</strong> track. You cannot change this selection.
+          {user?.is_admin && !isRoundEnabled && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              Round 3 is currently disabled for participants. As an admin, you can still proceed.
             </Alert>
           )}
           
-          <Grid container spacing={4}>
+          {isRoundEnabled && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              Round 3 is enabled and ready to start!
+            </Alert>
+          )}
+          
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              color: 'text.secondary',
+              mb: 4
+            }}
+          >
+            Select the track you want to compete in for Round 3
+          </Typography>
+          
+          <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Card 
                 sx={{ 
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  transition: 'transform 0.3s, box-shadow 0.3s',
-                  '&:hover': user.round3_track === 'dsa' || !user.round3_track ? {
-                    transform: 'translateY(-8px)',
-                    boxShadow: 8
-                  } : {},
-                  border: '1px solid',
-                  borderColor: user.round3_track === 'dsa' ? 'primary.main' : 'primary.light',
-                  borderWidth: user.round3_track === 'dsa' ? 2 : 1,
-                  borderRadius: 2,
-                  opacity: user.round3_track && user.round3_track !== 'dsa' ? 0.6 : 1,
-                  position: 'relative'
+                  transition: 'transform 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: 3
+                  }
                 }}
               >
-                {user.round3_track === 'dsa' && (
-                  <Box sx={{ 
-                    position: 'absolute',
-                    top: 10,
-                    right: 10,
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    px: 2,
-                    py: 0.5,
-                    borderRadius: 10,
-                    fontSize: '0.75rem',
-                    fontWeight: 'bold',
-                    zIndex: 1
-                  }}>
-                    SELECTED
-                  </Box>
-                )}
-                <CardActionArea 
-                  onClick={() => handleTrackSelection('dsa')}
-                  sx={{ 
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
-                    height: '100%',
-                    pointerEvents: user.round3_track && user.round3_track !== 'dsa' ? 'none' : 'auto'
-                  }}
-                  disabled={user.round3_track && user.round3_track !== 'dsa'}
-                >
-                  <CardMedia
-                    component="img"
-                    height="140"
-                    image="https://img.freepik.com/free-vector/programming-concept-illustration_114360-1351.jpg"
-                    alt="DSA Track"
-                  />
-                  <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography gutterBottom variant="h5" component="div" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      Data Structures & Algorithms
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ flex: 1, mb: 2 }}>
-                      Solve coding challenges that test your knowledge of algorithms and data structures. 
-                      You'll tackle problems ranging from basic to advanced difficulty.
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      <strong>Manual Scoring:</strong> Your code will be evaluated by judges for correctness, efficiency, and style.
-                    </Typography>
-                  </CardContent>
-                </CardActionArea>
+                <CardMedia
+                  component="img"
+                  height="200"
+                  image="/dsa.jpg"
+                  alt="Data Structures and Algorithms"
+                  sx={{ objectFit: 'cover' }}
+                />
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography gutterBottom variant="h5" component="h2" sx={{ fontWeight: 600 }}>
+                    Data Structures & Algorithms
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    Solve algorithmic challenges by implementing efficient solutions in your chosen programming language. 
+                    Test your problem-solving skills against complex computational problems.
+                  </Typography>
+                  {completedProblems.dsa.length > 0 && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Completed: {completedProblems.dsa.length}/3 challenges
+                    </Alert>
+                  )}
+                </CardContent>
+                <CardActions sx={{ justifyContent: 'center', pb: 3 }}>
+                  <Button 
+                    variant="contained" 
+                    size="large" 
+                    onClick={() => handleTrackSelection('dsa')}
+                    sx={{ px: 4 }}
+                    disabled={completedProblems.dsa.length >= 3}
+                  >
+                    {completedProblems.dsa.length >= 3 ? 'Completed' : 'Select Track'}
+                  </Button>
+                </CardActions>
               </Card>
             </Grid>
             
@@ -255,84 +408,52 @@ const Round3Selection = () => {
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  transition: 'transform 0.3s, box-shadow 0.3s',
-                  '&:hover': user.round3_track === 'web' || !user.round3_track ? {
-                    transform: 'translateY(-8px)',
-                    boxShadow: 8
-                  } : {},
-                  border: '1px solid',
-                  borderColor: user.round3_track === 'web' ? 'primary.main' : 'primary.light',
-                  borderWidth: user.round3_track === 'web' ? 2 : 1,
-                  borderRadius: 2,
-                  opacity: user.round3_track && user.round3_track !== 'web' ? 0.6 : 1,
-                  position: 'relative'
+                  transition: 'transform 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: 3
+                  }
                 }}
               >
-                {user.round3_track === 'web' && (
-                  <Box sx={{ 
-                    position: 'absolute',
-                    top: 10,
-                    right: 10,
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    px: 2,
-                    py: 0.5,
-                    borderRadius: 10,
-                    fontSize: '0.75rem',
-                    fontWeight: 'bold',
-                    zIndex: 1
-                  }}>
-                    SELECTED
-                  </Box>
-                )}
-                <CardActionArea 
-                  onClick={() => handleTrackSelection('web')}
-                  sx={{ 
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
-                    height: '100%',
-                    pointerEvents: user.round3_track && user.round3_track !== 'web' ? 'none' : 'auto'
-                  }}
-                  disabled={user.round3_track && user.round3_track !== 'web'}
-                >
-                  <CardMedia
-                    component="img"
-                    height="140"
-                    image="https://img.freepik.com/free-vector/web-development-programmer-engineering-coding-website-augmented-reality-interface-screens-developer-project-engineer-programming-software-application-design-cartoon-illustration_107791-3863.jpg"
-                    alt="Web Development Track"
-                  />
-                  <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography gutterBottom variant="h5" component="div" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      Web Development
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ flex: 1, mb: 2 }}>
-                      Build interactive web components using HTML, CSS, and JavaScript. 
-                      Demonstrate your frontend development skills by creating responsive, 
-                      accessible, and visually appealing components.
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      <strong>Manual Scoring:</strong> Your web components will be evaluated based on functionality, design, and code quality.
-                    </Typography>
-                  </CardContent>
-                </CardActionArea>
+                <CardMedia
+                  component="img"
+                  height="200"
+                  image="/web.jpg"
+                  alt="Web Development"
+                  sx={{ objectFit: 'cover' }}
+                />
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography gutterBottom variant="h5" component="h2" sx={{ fontWeight: 600 }}>
+                    Web Development
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    Demonstrate your frontend skills by completing web development challenges. 
+                    Build responsive interfaces, implement features, and showcase your HTML, CSS, and JavaScript expertise.
+                  </Typography>
+                  {completedProblems.web.length > 0 && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Completed: {completedProblems.web.length}/3 challenges
+                    </Alert>
+                  )}
+                </CardContent>
+                <CardActions sx={{ justifyContent: 'center', pb: 3 }}>
+                  <Button 
+                    variant="contained" 
+                    size="large" 
+                    onClick={() => handleTrackSelection('web')}
+                    sx={{ px: 4 }}
+                    disabled={completedProblems.web.length >= 3}
+                  >
+                    {completedProblems.web.length >= 3 ? 'Completed' : 'Select Track'}
+                  </Button>
+                </CardActions>
               </Card>
             </Grid>
           </Grid>
           
-          <Box sx={{ mt: 4, textAlign: 'center' }}>
-            <Button 
-              variant="outlined" 
-              onClick={() => navigate('/participant-dashboard')}
-              sx={{ 
-                mt: 2,
-                px: 4
-              }}
-            >
-              Back to Dashboard
-            </Button>
-          </Box>
+          <Typography variant="body2" sx={{ mt: 4, color: 'warning.main', fontWeight: 500 }}>
+            Important: Your track choice is permanent. You cannot change tracks once you select one.
+          </Typography>
         </Paper>
       </Container>
       
@@ -340,21 +461,24 @@ const Round3Selection = () => {
       <Dialog
         open={confirmDialog.open}
         onClose={() => setConfirmDialog({ open: false, track: null })}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
       >
-        <DialogTitle>Confirm Track Selection</DialogTitle>
+        <DialogTitle id="alert-dialog-title">
+          Confirm Track Selection
+        </DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            You are about to select the <strong>{confirmDialog.track === 'dsa' ? 'Data Structures & Algorithms' : 'Web Development'}</strong> track. 
-            This choice is permanent and you will not be able to participate in the other track.
-            Are you sure you want to continue?
+          <DialogContentText id="alert-dialog-description">
+            You are about to select the {confirmDialog.track === 'dsa' ? 'Data Structures & Algorithms' : 'Web Development'} track. 
+            This choice is permanent and cannot be changed. Are you sure you want to proceed?
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialog({ open: false, track: null })} color="primary">
+          <Button onClick={() => setConfirmDialog({ open: false, track: null })}>
             Cancel
           </Button>
-          <Button onClick={confirmTrackSelection} color="primary" variant="contained">
-            Confirm Selection
+          <Button onClick={confirmTrackSelection} autoFocus>
+            Confirm
           </Button>
         </DialogActions>
       </Dialog>
