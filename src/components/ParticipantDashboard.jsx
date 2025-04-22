@@ -18,7 +18,6 @@ const ParticipantDashboard = () => {
         round2: { enabled: false },
         round3: { enabled: false }
     });
-    const [accessPolling, setAccessPolling] = useState(true); // Changed to true by default
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
@@ -145,7 +144,7 @@ const ParticipantDashboard = () => {
                         console.log("Using local user data due to 404 error");
                         
                         // Ensure parsedUser has current_round property for testing
-                        if (!parsedUser.hasOwnProperty('current_round')) {
+                        if (!Object.prototype.hasOwnProperty.call(parsedUser, 'current_round')) {
                             parsedUser.current_round = 3; // Set to 3 for testing Round 3
                         }
                     }
@@ -189,7 +188,7 @@ const ParticipantDashboard = () => {
         return () => {
             if (intervalId) clearInterval(intervalId);
         };
-    }, [user, roundsAccess]);
+    }, [user, roundsAccess, handleAccessChange]);
 
     // In the startRound function
     const startRound = (roundNumber) => {

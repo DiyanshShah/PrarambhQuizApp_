@@ -9,6 +9,8 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
+import CodeIcon from '@mui/icons-material/Code';
+import PythonIcon from '@mui/icons-material/IntegrationInstructions';
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -304,7 +306,7 @@ const Round2 = () => {
         display: 'flex',
         flexDirection: 'column',
       }}>
-        <Navbar isAdmin={false} />
+        <Navbar isAdmin={user?.is_admin || false} />
         <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
           <Paper 
             elevation={0}
@@ -344,66 +346,64 @@ const Round2 = () => {
               
               <Grid container spacing={3} justifyContent="center">
                 <Grid item xs={12} md={6}>
-                  <Card 
+                  <Paper 
+                    elevation={3} 
                     sx={{ 
+                      p: 3, 
+                      textAlign: 'center',
                       cursor: 'pointer',
-                      height: '100%',
                       transition: 'transform 0.2s, box-shadow 0.2s',
                       '&:hover': {
-                        transform: 'translateY(-5px)',
-                        boxShadow: 6
+                        transform: 'scale(1.03)',
+                        boxShadow: 6,
                       }
                     }}
                     onClick={() => handleLanguageSelect('python')}
                   >
-                    <CardContent sx={{ 
-                      textAlign: 'center', 
-                      p: 4, 
-                      display: 'flex',
-                      flexDirection: 'column',
-                      height: '100%',
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }}>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', mb: 2 }}>
-                        Python
-                      </Typography>
-                      <Typography variant="body1">
-                        Select this if you're more comfortable with Python programming.
-                      </Typography>
-                    </CardContent>
-                  </Card>
+                    <PythonIcon sx={{ fontSize: 60, color: '#3776AB', mb: 2 }} />
+                    <Typography variant="h5" gutterBottom>Python</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Select Python for Round 2 questions focused on Python programming concepts.
+                    </Typography>
+                    <Button 
+                      variant="contained" 
+                      color="primary" 
+                      sx={{ mt: 2 }}
+                      onClick={() => handleLanguageSelect('python')}
+                    >
+                      Choose Python
+                    </Button>
+                  </Paper>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Card 
+                  <Paper 
+                    elevation={3} 
                     sx={{ 
+                      p: 3, 
+                      textAlign: 'center',
                       cursor: 'pointer',
-                      height: '100%',
                       transition: 'transform 0.2s, box-shadow 0.2s',
                       '&:hover': {
-                        transform: 'translateY(-5px)',
-                        boxShadow: 6
+                        transform: 'scale(1.03)',
+                        boxShadow: 6,
                       }
                     }}
                     onClick={() => handleLanguageSelect('c')}
                   >
-                    <CardContent sx={{ 
-                      textAlign: 'center', 
-                      p: 4, 
-                      display: 'flex',
-                      flexDirection: 'column',
-                      height: '100%',
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }}>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', mb: 2 }}>
-                        C
-                      </Typography>
-                      <Typography variant="body1">
-                        Select this if you're more comfortable with C programming.
-                      </Typography>
-                    </CardContent>
-                  </Card>
+                    <CodeIcon sx={{ fontSize: 60, color: '#A8B9CC', mb: 2 }} />
+                    <Typography variant="h5" gutterBottom>C</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Select C for Round 2 questions focused on C programming concepts.
+                    </Typography>
+                    <Button 
+                      variant="contained" 
+                      color="primary" 
+                      sx={{ mt: 2 }}
+                      onClick={() => handleLanguageSelect('c')}
+                    >
+                      Choose C
+                    </Button>
+                  </Paper>
                 </Grid>
               </Grid>
               
@@ -615,13 +615,19 @@ const Round2 = () => {
                   {questions[currentQuestionIndex].questionImage && (
                     <Box sx={{ mb: 3, textAlign: 'center' }}>
                       <img 
-                        src={`${apiUrl}/${questions[currentQuestionIndex].questionImage}`}
+                        src={questions[currentQuestionIndex].questionImage.startsWith('http') 
+                          ? questions[currentQuestionIndex].questionImage 
+                          : `${apiUrl}/${questions[currentQuestionIndex].questionImage}`}
                         alt="Question"
                         style={{ 
                           maxWidth: '100%', 
                           maxHeight: '300px',
                           border: '1px solid rgba(255, 255, 255, 0.1)',
                           borderRadius: '8px'
+                        }}
+                        onError={(e) => {
+                          console.error("Image failed to load:", questions[currentQuestionIndex].questionImage);
+                          e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
                         }}
                       />
                     </Box>

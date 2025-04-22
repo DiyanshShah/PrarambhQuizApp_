@@ -1750,6 +1750,51 @@ def create_participant():
         return jsonify({'error': f'Failed to create participant: {str(e)}'}), 500
 
 
+@app.route('/api/quiz/round2', methods=['GET'])
+def get_round2_quiz_questions():
+    try:
+        # Get language parameter (required)
+        language = request.args.get('language')
+        
+        if not language or language not in ['python', 'c']:
+            return jsonify({'error': 'Valid language parameter (python or c) is required'}), 400
+            
+        # Get user ID from request
+        user_id = request.args.get('user_id')
+        
+        # Check if round is enabled (skip for admins)
+        if user_id:
+            user = User.query.get(user_id)
+            if not user or (not user.is_admin and not is_round_enabled(2)):
+                return jsonify({'error': 'Round 2 is not currently enabled'}), 403
+        
+        # Load questions for the specified language
+        file_path = os.path.join(os.path.dirname(__file__), f'round2_{language}_questions.json')
+        
+        if not os.path.exists(file_path):
+            # If file doesn't exist, return empty array
+            return jsonify([]), 200
+        
+        with open(file_path, 'r') as file:
+            questions = json.load(file)
+        
+        # Shuffle questions for each participant
+        random.shuffle(questions)
+        
+        # Limit number of questions if needed
+        max_questions = 10  # Adjust as needed
+        if len(questions) > max_questions:
+            questions = questions[:max_questions]
+        
+        return jsonify(questions), 200
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error fetching Round 2 questions: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to fetch Round 2 questions: {str(e)}'}), 500
+
 @app.route('/api/admin/all-data', methods=['GET'])
 def get_all_data():
     # Check if user is admin (implement your actual auth check)
@@ -1841,4 +1886,4 @@ def get_all_data():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0') 
+    app.run(debug=True, host='0.0.0.0')

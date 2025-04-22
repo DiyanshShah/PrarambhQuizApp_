@@ -27,9 +27,6 @@ import Navbar from './Navbar';
 import CodeIcon from '@mui/icons-material/Code';
 import WebIcon from '@mui/icons-material/Web';
 
-const apiUrl = import.meta.env.VITE_API_URL;
-
-
 const Round3Selection = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -38,7 +35,6 @@ const Round3Selection = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [isRoundEnabled, setIsRoundEnabled] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
-  const [isAccessDisabledAlert, setIsAccessDisabledAlert] = useState(false);
   const [completedProblems, setCompletedProblems] = useState({
     dsa: [],
     web: []

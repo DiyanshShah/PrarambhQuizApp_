@@ -19,7 +19,6 @@ const MotionTypography = motion(Typography);
 
 const Results = ({ isAdmin }) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -32,7 +31,6 @@ const Results = ({ isAdmin }) => {
     }
 
     const userObj = JSON.parse(loggedInUser);
-    setUser(userObj);
 
     // Redirect admin users (they should use leaderboard)
     if (userObj.is_admin && !isAdmin) {

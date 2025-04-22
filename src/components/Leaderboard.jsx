@@ -12,7 +12,6 @@ const apiUrl = import.meta.env.VITE_API_URL;
 
 const Leaderboard = ({ isAdmin }) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,7 +23,6 @@ const Leaderboard = ({ isAdmin }) => {
     severity: 'success'
   });
   const [totalParticipants, setTotalParticipants] = useState(0);
-  const [isAdminView, setIsAdminView] = useState(false);
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -34,7 +32,6 @@ const Leaderboard = ({ isAdmin }) => {
     }
 
     const userObj = JSON.parse(loggedInUser);
-    setUser(userObj);
 
     // Only admin can view the leaderboard
     if (!userObj.is_admin && isAdmin) {
@@ -74,7 +71,6 @@ const Leaderboard = ({ isAdmin }) => {
       
       setLeaderboardData(response.data.leaderboard || []);
       setTotalParticipants(response.data.total_participants || 0);
-      setIsAdminView(response.data.is_admin_view || false);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching leaderboard:', error);

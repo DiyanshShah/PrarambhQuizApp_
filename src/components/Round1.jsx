@@ -31,7 +31,6 @@ const Round1 = () => {
   const totalQuestions = 20;
   const gracePeriod = 5 * 60; // 5 minutes in seconds
   const timerRef = useRef(null);
-  const accessCheckRef = useRef(null);
 
   // Load user from localStorage
   useEffect(() => {

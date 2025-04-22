@@ -119,7 +119,7 @@ const AdminDashboard = () => {
         
         setUpdatingAccess(true);
         try {
-            const response = await axios.post(`${apiUrl}/api/admin/rounds/access`, {
+            await axios.post(`${apiUrl}/api/admin/rounds/access`, {
                 admin_user_id: user.id,
                 round_number: roundNumber,
                 is_enabled: enabled
@@ -191,7 +191,7 @@ const AdminDashboard = () => {
             };
             
             // Call the backend API to add the question
-            const response = await axios.post(`${apiUrl}/api/admin/questions/${language}`, questionData);
+            await axios.post(`${apiUrl}/api/admin/questions/${language}`, questionData);
             
             // Reset form
             setLanguage('');
@@ -289,7 +289,7 @@ const AdminDashboard = () => {
             };
             
             // Call the backend API to add the Round 2 question
-            const response = await axios.post(`${apiUrl}/api/admin/questions/round2`, questionData);
+            await axios.post(`${apiUrl}/api/admin/questions/round2`, questionData);
             
             // Reset form
             setRound2Language('');
@@ -343,7 +343,7 @@ const AdminDashboard = () => {
                 language: deleteRound === 3 ? undefined : deleteLanguage
             };
 
-            const response = await axios.post(`${apiUrl}/api/admin/questions/delete`, deleteData);
+            await axios.post(`${apiUrl}/api/admin/questions/delete`, deleteData);
             
             // Reset form
             setDeleteQuestionId('');
@@ -528,8 +528,7 @@ const AdminDashboard = () => {
                 password: newParticipantPassword
             };
             
-            // Call the backend API to create the participant
-            const response = await axios.post(`${apiUrl}/api/admin/participants/create`, participantData);
+            await axios.post(`${apiUrl}/api/admin/participants/create`, participantData);
             
             // Reset form
             setNewParticipantEnrollment('');

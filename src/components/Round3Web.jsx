@@ -24,8 +24,6 @@ import axios from 'axios';
 import Navbar from './Navbar';
 import { webChallenges } from '../data/webChallenges';
 
-const apiUrl = import.meta.env.VITE_API_URL;
-
 // Function to submit challenge (real implementation)
 const submitChallenge = async (challengeId, html, css, js, isAutoSubmission = false) => {
   try {
@@ -108,7 +106,6 @@ const Round3Web = () => {
   const [completedChallenges, setCompletedChallenges] = useState([]);
   const [roundEnabled, setRoundEnabled] = useState(false);
   const [waitingForAccess, setWaitingForAccess] = useState(false);
-  const [accessChecked, setAccessChecked] = useState(false);
   const [isAccessDisabledAlert, setIsAccessDisabledAlert] = useState(false);
 
   // Function to check if Round 3 is enabled
@@ -445,7 +442,8 @@ const Round3Web = () => {
           selectChallenge(currentChallenge + 1);
         }, 1500);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Error submitting:', err);
       setSnackbar({
         open: true,
         message: 'Error submitting challenge. Please try again.',

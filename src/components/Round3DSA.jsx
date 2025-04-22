@@ -24,8 +24,6 @@ import { dsaProblems } from '../data/dsaProblems';
 import axios from 'axios';
 import Navbar from './Navbar';
 
-const apiUrl = import.meta.env.VITE_API_URL;
-
 const Round3DSA = () => {
   const navigate = useNavigate();
   const { problemId } = useParams();
@@ -44,7 +42,7 @@ const Round3DSA = () => {
   const [completedProblems, setCompletedProblems] = useState([]);
   const [roundEnabled, setRoundEnabled] = useState(false);
   const [waitingForAccess, setWaitingForAccess] = useState(false);
-  const [accessChecked, setAccessChecked] = useState(false);
+  const [accessChecked] = useState(false);
   const [isAccessDisabledAlert, setIsAccessDisabledAlert] = useState(false);
   
   // Initialize with default template based on language
@@ -215,27 +213,19 @@ const Round3DSA = () => {
         try {
           // Auto-submit the current solution with scoring
           if (code && code.trim() !== templates[language]) {
-            const response = await axios.post('/api/round3/submit-dsa', {
+            const submitResponse = await axios.post('/api/round3/submit-dsa', {
               user_id: JSON.parse(localStorage.getItem('user')).id,
               challenge_id: parseInt(problemId),
               challenge_name: problem.title,
               code: code,
-              language: language,
-              auto_submit: true // Flag to indicate this is an auto-submission
+              language: language
             });
             
-            console.log("Solution auto-submitted due to round access revocation");
-            
-            // Update completed problems
-            if (!completedProblems.includes(parseInt(problemId))) {
-              setCompletedProblems([...completedProblems, parseInt(problemId)]);
-            }
-            
             // Show score notification if response includes score info
-            if (response.data && response.data.score !== undefined) {
+            if (submitResponse.data && submitResponse.data.score !== undefined) {
               setSnackbar({
                 open: true,
-                message: `Solution submitted and scored: ${response.data.score} points. ${response.data.qualified_for_next ? 'You have qualified for the next round!' : ''}`,
+                message: `Solution submitted and scored: ${submitResponse.data.score} points. ${submitResponse.data.qualified_for_next ? 'You have qualified for the next round!' : ''}`,
                 severity: 'info'
               });
             }
@@ -249,17 +239,17 @@ const Round3DSA = () => {
           });
         }
         
-        // Redirect to dashboard after a short delay
+        // Redirect back to dashboard
         setTimeout(() => {
           navigate('/participant-dashboard');
         }, 3000);
       }
-    }, 10000); // Check every 10 seconds
+    }, 5000);
     
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [waitingForAccess, problem, problemId, code, language, navigate, completedProblems]);
+  }, [waitingForAccess, problem, templates, language, navigate, code]);
 
   useEffect(() => {
     // Reset code when language changes
@@ -304,7 +294,7 @@ const Round3DSA = () => {
       }
       
       // Submit solution to the backend
-      const response = await axios.post('/api/round3/submit-dsa', {
+      await axios.post('/api/round3/submit-dsa', {
         user_id: JSON.parse(localStorage.getItem('user')).id,
         challenge_id: parseInt(problemId),
         challenge_name: problem.title,
