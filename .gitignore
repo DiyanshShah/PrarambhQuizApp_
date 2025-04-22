@@ -51,9 +51,6 @@ predefined_participants.json
 *_credentials.json
 *_secret*.json
 
-# Question data files
-*_questions.json
-
 # Node (for frontend)
 node_modules/
 npm-debug.log*
