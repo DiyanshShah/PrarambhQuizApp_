@@ -9,7 +9,6 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 import base64
 import random  # Add import for shuffling questions
-from flask_compress import Compress  # Import Flask-Compress
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,7 +16,6 @@ load_dotenv()
 app = Flask(__name__)
 # Enable CORS for all routes with additional options
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]}})
-Compress(app)  # Initialize Flask-Compress to reduce response size
 
 # Add CORS headers to all responses
 @app.after_request
