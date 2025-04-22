@@ -14,6 +14,24 @@ import PythonIcon from '@mui/icons-material/IntegrationInstructions';
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
+// Helper function to get the correct image URL format
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  
+  // If it's already a full URL, return it as is
+  if (imagePath.startsWith('http')) {
+    return imagePath;
+  }
+  
+  // For round2 images, try the new direct route
+  if (imagePath.startsWith('round2/')) {
+    return `${apiUrl}/${imagePath}`;
+  }
+  
+  // Default case - use uploads path
+  return `${apiUrl}/${imagePath}`;
+};
+
 const Round2 = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -116,7 +134,8 @@ const Round2 = () => {
   useEffect(() => {
     if (user && step === 'quiz' && selectedLanguage) {
       setLoading(true);
-      axios.get(`${apiUrl}/api/admin/questions/round2?language=${selectedLanguage}`)
+      // Use the quiz-specific endpoint for participants, which has better image path handling
+      axios.get(`${apiUrl}/api/quiz/round2?language=${selectedLanguage}`)
         .then(response => {
           console.log(`Round 2 ${selectedLanguage} questions loaded:`, response.data);
           setQuestions(response.data);
@@ -615,9 +634,7 @@ const Round2 = () => {
                   {questions[currentQuestionIndex].questionImage && (
                     <Box sx={{ mb: 3, textAlign: 'center' }}>
                       <img 
-                        src={questions[currentQuestionIndex].questionImage.startsWith('http') 
-                          ? questions[currentQuestionIndex].questionImage 
-                          : `${apiUrl}/${questions[currentQuestionIndex].questionImage}`}
+                        src={getImageUrl(questions[currentQuestionIndex].questionImage)}
                         alt="Question"
                         style={{ 
                           maxWidth: '100%', 
@@ -627,7 +644,15 @@ const Round2 = () => {
                         }}
                         onError={(e) => {
                           console.error("Image failed to load:", questions[currentQuestionIndex].questionImage);
-                          e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
+                          // Try an alternative URL format if the first one fails
+                          const currentSrc = e.target.src;
+                          if (currentSrc.includes('/uploads/round2/')) {
+                            // Try direct path
+                            e.target.src = currentSrc.replace('/uploads/round2/', '/round2/');
+                          } else if (currentSrc.includes(`${apiUrl}/round2/`)) {
+                            // Already tried both formats, show placeholder
+                            e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
+                          }
                         }}
                       />
                     </Box>
@@ -660,13 +685,24 @@ const Round2 = () => {
                               {questions[currentQuestionIndex].optionImages && questions[currentQuestionIndex].optionImages[index] && (
                                 <Box sx={{ mt: 1 }}>
                                   <img 
-                                    src={`${apiUrl}/${questions[currentQuestionIndex].optionImages[index]}`}
+                                    src={getImageUrl(questions[currentQuestionIndex].optionImages[index])}
                                     alt={`Option ${index + 1}`}
                                     style={{ 
                                       maxWidth: '100%', 
                                       maxHeight: '150px',
                                       border: '1px solid rgba(255, 255, 255, 0.1)',
                                       borderRadius: '4px'
+                                    }}
+                                    onError={(e) => {
+                                      console.error("Option image failed to load:", questions[currentQuestionIndex].optionImages[index]);
+                                      const currentSrc = e.target.src;
+                                      if (currentSrc.includes('/uploads/round2/')) {
+                                        // Try direct path
+                                        e.target.src = currentSrc.replace('/uploads/round2/', '/round2/');
+                                      } else if (currentSrc.includes(`${apiUrl}/round2/`)) {
+                                        // Already tried both formats, show placeholder
+                                        e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
+                                      }
                                     }}
                                   />
                                 </Box>

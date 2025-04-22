@@ -1249,7 +1249,59 @@ def debug_set_user_round(user_id, round_number, track=None):
 # Route to serve uploaded files
 @app.route('/uploads/<path:folder>/<path:filename>')
 def serve_uploads(folder, filename):
-    return send_from_directory(os.path.join(UPLOAD_FOLDER, folder), filename)
+    print(f"Attempting to serve file from uploads: folder={folder}, filename={filename}")
+    
+    # First try the standard uploads directory
+    upload_path = os.path.join(UPLOAD_FOLDER, folder)
+    full_path = os.path.join(upload_path, filename)
+    if os.path.exists(full_path):
+        print(f"File found in uploads directory: {full_path}")
+        return send_from_directory(upload_path, filename)
+    
+    print(f"File not found in uploads directory: {full_path}")
+    
+    # If not found, try the root directory structure as fallback
+    app_root = os.path.dirname(__file__)
+    if folder.startswith('round2/'):
+        # Handle the case where files are in backend/round2 directly
+        alt_path = os.path.join(app_root, folder)
+        alt_full_path = os.path.join(alt_path, filename)
+        if os.path.exists(alt_full_path):
+            print(f"File found in alternate path: {alt_full_path}")
+            return send_from_directory(alt_path, filename)
+        print(f"File not found in alternate path: {alt_full_path}")
+    
+    # If still not found, return a 404 error
+    print(f"File not found in any location: {folder}/{filename}")
+    return "File not found", 404
+
+# Add a direct route for round2 files to handle both paths
+@app.route('/round2/<path:subfolder>/<path:filename>')
+def serve_round2_files(subfolder, filename):
+    print(f"Attempting to serve file from round2: subfolder={subfolder}, filename={filename}")
+    
+    # First check in backend/uploads/round2
+    uploads_path = os.path.join(UPLOAD_FOLDER, 'round2', subfolder)
+    uploads_full_path = os.path.join(uploads_path, filename)
+    if os.path.exists(uploads_full_path):
+        print(f"File found in uploads/round2: {uploads_full_path}")
+        return send_from_directory(uploads_path, filename)
+    
+    print(f"File not found in uploads/round2: {uploads_full_path}")
+    
+    # Then check in backend/round2 directly
+    app_root = os.path.dirname(__file__)
+    direct_path = os.path.join(app_root, 'round2', subfolder)
+    direct_full_path = os.path.join(direct_path, filename)
+    if os.path.exists(direct_full_path):
+        print(f"File found in direct round2 path: {direct_full_path}")
+        return send_from_directory(direct_path, filename)
+    
+    print(f"File not found in direct round2 path: {direct_full_path}")
+    
+    # If still not found, return a 404 error
+    print(f"File not found in any location: round2/{subfolder}/{filename}")
+    return "File not found", 404
 
 @app.route('/api/leaderboard', methods=['GET'])
 def get_leaderboard():
@@ -1753,47 +1805,60 @@ def create_participant():
 @app.route('/api/quiz/round2', methods=['GET'])
 def get_round2_quiz_questions():
     try:
-        # Get language parameter (required)
+        # Get language parameter from query string
         language = request.args.get('language')
-        
         if not language or language not in ['python', 'c']:
-            return jsonify({'error': 'Valid language parameter (python or c) is required'}), 400
-            
-        # Get user ID from request
-        user_id = request.args.get('user_id')
-        
-        # Check if round is enabled (skip for admins)
-        if user_id:
-            user = User.query.get(user_id)
-            if not user or (not user.is_admin and not is_round_enabled(2)):
-                return jsonify({'error': 'Round 2 is not currently enabled'}), 403
+            return jsonify({'error': 'Invalid or missing language parameter. Must be "python" or "c"'}), 400
         
         # Load questions for the specified language
         file_path = os.path.join(os.path.dirname(__file__), f'round2_{language}_questions.json')
         
         if not os.path.exists(file_path):
-            # If file doesn't exist, return empty array
-            return jsonify([]), 200
+            return jsonify({'error': f'No questions found for {language}'}), 404
         
         with open(file_path, 'r') as file:
             questions = json.load(file)
         
-        # Shuffle questions for each participant
-        random.shuffle(questions)
+        # Process image paths to ensure they're correct
+        for question in questions:
+            # Handle question image path
+            if 'questionImage' in question and question['questionImage']:
+                # Make sure the path is correct
+                if question['questionImage'].startswith('round2/'):
+                    # This is the original format, keep it as is
+                    pass
+                elif not question['questionImage'].startswith(('http', '/')):
+                    # This is a relative path, ensure it points to correct location
+                    question['questionImage'] = f"round2/{language}/{question['questionImage']}"
+            
+            # Handle option image paths
+            if 'optionImages' in question and question['optionImages']:
+                for i, img_path in enumerate(question['optionImages']):
+                    if img_path:
+                        if img_path.startswith('round2/'):
+                            # This is the original format, keep it as is
+                            pass
+                        elif not img_path.startswith(('http', '/')):
+                            # This is a relative path, ensure it points to correct location
+                            question['optionImages'][i] = f"round2/{language}/{img_path}"
         
-        # Limit number of questions if needed
-        max_questions = 10  # Adjust as needed
-        if len(questions) > max_questions:
-            questions = questions[:max_questions]
+        # Limit to 20 questions for performance and fairness
+        if len(questions) > 20:
+            # Shuffle questions and take first 20
+            random.shuffle(questions)
+            questions = questions[:20]
+        else:
+            # Shuffle questions
+            random.shuffle(questions)
         
         return jsonify(questions), 200
         
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
-        print(f"Error fetching Round 2 questions: {str(e)}")
+        print(f"Error fetching Round 2 quiz questions: {str(e)}")
         print(f"Traceback: {error_traceback}")
-        return jsonify({'error': f'Failed to fetch Round 2 questions: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to fetch Round 2 quiz questions: {str(e)}'}), 500
 
 @app.route('/api/admin/all-data', methods=['GET'])
 def get_all_data():
