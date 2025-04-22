@@ -11,6 +11,8 @@ const ParticipantDashboard = () => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [attemptedRounds, setAttemptedRounds] = useState({});
+
+    // Initialize roundsAccess with default values
     const [roundsAccess, setRoundsAccess] = useState({
         round1: { enabled: false },
         round2: { enabled: false },
@@ -31,11 +33,20 @@ const ParticipantDashboard = () => {
     // Function to check rounds access status
     const checkRoundsAccess = async () => {
         try {
-            const response = await axios.get('/api/rounds/access');
-            return response.data;
+            const response = await axios.get(`${apiUrl}/api/rounds/access`);
+            return response.data || {
+                round1: { enabled: false },
+                round2: { enabled: false },
+                round3: { enabled: false }
+            };
         } catch (error) {
             console.error('Error checking rounds access:', error);
-            return roundsAccess;
+            // Return default values if API call fails
+            return {
+                round1: { enabled: false },
+                round2: { enabled: false },
+                round3: { enabled: false }
+            };
         }
     };
 
@@ -193,14 +204,13 @@ const ParticipantDashboard = () => {
         }
         
         // Check if the round is enabled by admin
-        const roundEnabled = roundsAccess[`round${roundNumber}`]?.enabled;
-        if (!roundEnabled && !user.is_admin) {
+        const roundEnabled = roundsAccess?.[`round${roundNumber}`]?.enabled || false;
+        if (!roundEnabled && !user?.is_admin) {
             setSnackbar({
                 open: true,
                 message: `Round ${roundNumber} is not yet enabled by the administrator. Please wait for access.`,
                 severity: 'warning'
             });
-            setAccessPolling(true);
             return;
         }
         
@@ -366,7 +376,7 @@ const ParticipantDashboard = () => {
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(1)}
-                                        disabled={user && user.current_round < 1 || attemptedRounds[1] || (!roundsAccess.round1?.enabled && !user?.is_admin)}
+                                        disabled={attemptedRounds[1] || (!roundsAccess?.round1?.enabled && !user?.is_admin)}
                                     >
                                         {attemptedRounds[1] ? 'Already Attempted' : 'Start Round 1'}
                                     </Button>
@@ -429,7 +439,7 @@ const ParticipantDashboard = () => {
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(2)}
-                                        disabled={user && user.current_round < 2 || attemptedRounds[2] || (!roundsAccess.round2?.enabled && !user?.is_admin)}
+                                        disabled={attemptedRounds[2] || (!roundsAccess?.round2?.enabled && !user?.is_admin)}
                                         sx={{
                                             opacity: user && user.current_round >= 2 ? 1 : 0.6
                                         }}
@@ -496,7 +506,7 @@ const ParticipantDashboard = () => {
                                         variant="contained"
                                         fullWidth
                                         onClick={() => startRound(3)}
-                                        disabled={user && (!user.qualified_for_round3 && !user.is_admin) || (!roundsAccess.round3?.enabled && !user?.is_admin)}
+                                        disabled={attemptedRounds[3] || (!roundsAccess?.round3?.enabled && !user?.is_admin)}
                                         sx={{
                                             opacity: user && user.current_round >= 3 ? 1 : 0.6
                                         }}
