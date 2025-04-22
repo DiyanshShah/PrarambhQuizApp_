@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Container, Typography, Box, Paper, Table, TableBody, 
   TableCell, TableContainer, TableHead, TableRow, CircularProgress,
-  Chip, TablePagination, Alert, Button, Snackbar
+  Chip, TablePagination, Alert, Snackbar
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
@@ -16,7 +16,6 @@ const Leaderboard = ({ isAdmin }) => {
   const [error, setError] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [updating, setUpdating] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -51,35 +50,6 @@ const Leaderboard = ({ isAdmin }) => {
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
-  };
-
-  const handleUpdateRound3Participants = async () => {
-    if (!user?.id || !isAdmin) return;
-    
-    try {
-      setUpdating(true);
-      const response = await axios.post('http://localhost:5000/api/leaderboard/update-round3', {
-        user_id: user.id
-      });
-      
-      setSnackbar({
-        open: true,
-        message: `Success! ${response.data.total_updated} participants updated to Round 3.`,
-        severity: 'success'
-      });
-      
-      // Refresh the leaderboard data
-      fetchLeaderboard();
-    } catch (err) {
-      console.error('Error updating Round 3 participants:', err);
-      setSnackbar({
-        open: true,
-        message: err.response?.data?.error || 'Failed to update Round 3 participants',
-        severity: 'error'
-      });
-    } finally {
-      setUpdating(false);
-    }
   };
   
   const handleCloseSnackbar = () => {
@@ -176,27 +146,13 @@ const Leaderboard = ({ isAdmin }) => {
             </Alert>
           )}
 
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography variant="subtitle1" sx={{ color: 'text.secondary', mb: 1 }}>
-                Total Participants: {totalParticipants}
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary' }}>
-                Top 20 participants will proceed to Round 3.
-              </Typography>
-            </Box>
-            
-            {isAdmin && (
-              <Button 
-                variant="contained"
-                color="primary"
-                disabled={updating}
-                onClick={handleUpdateRound3Participants}
-                sx={{ py: 1, px: 3 }}
-              >
-                {updating ? 'Updating...' : 'Promote Top 20 to Round 3'}
-              </Button>
-            )}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" sx={{ color: 'text.secondary', mb: 1 }}>
+              Total Participants: {totalParticipants}
+            </Typography>
+            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+              Round 3 Qualification: Top 10 participants with score ≥ 30% are automatically qualified
+            </Typography>
           </Box>
 
           {leaderboardData.length === 0 && !error ? (
@@ -237,14 +193,14 @@ const Leaderboard = ({ isAdmin }) => {
                           '&:hover': { 
                             backgroundColor: 'rgba(255, 107, 0, 0.1)' 
                           },
-                          // Highlight top 20
-                          ...(entry.rank <= 20 && {
+                          // Highlight qualified participants
+                          ...(entry.qualified_for_round3 && {
                             borderLeft: '4px solid',
                             borderColor: 'success.main'
                           })
                         }}
                       >
-                        <TableCell sx={{ color: 'text.primary', fontWeight: entry.rank <= 20 ? 'bold' : 'normal' }}>
+                        <TableCell sx={{ color: 'text.primary', fontWeight: entry.qualified_for_round3 ? 'bold' : 'normal' }}>
                           {entry.rank}
                         </TableCell>
                         <TableCell sx={{ color: 'text.primary' }}>{entry.username}</TableCell>
@@ -253,7 +209,7 @@ const Leaderboard = ({ isAdmin }) => {
                         <TableCell sx={{ color: 'text.primary' }}>{entry.percentage}%</TableCell>
                         <TableCell sx={{ color: 'text.primary' }}>{entry.current_round}</TableCell>
                         <TableCell>
-                          {entry.rank <= 20 ? (
+                          {entry.qualified_for_round3 ? (
                             <Chip 
                               label="Qualified for Round 3" 
                               color="success" 

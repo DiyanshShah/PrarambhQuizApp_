@@ -3,7 +3,8 @@ import {
   Container, Typography, Box, Paper, TextField, Button, 
   FormControl, InputLabel, Select, MenuItem, Grid, 
   FormHelperText, Snackbar, Alert, RadioGroup, Radio, FormControlLabel,
-  Switch, FormGroup, Card, CardContent, Divider, CircularProgress
+  Switch, FormGroup, Card, CardContent, Divider, CircularProgress,
+  Dialog, DialogTitle, DialogContent
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -23,6 +24,8 @@ const AdminDashboard = () => {
     const [showRound2QuestionForm, setShowRound2QuestionForm] = useState(false);
     const [showRound3Submissions, setShowRound3Submissions] = useState(false);
     const [showRoundAccessManager, setShowRoundAccessManager] = useState(false);
+    const [showDeleteQuestionForm, setShowDeleteQuestionForm] = useState(false);
+    const [showCreateParticipantForm, setShowCreateParticipantForm] = useState(false);
     
     // Form states for Round 1
     const [language, setLanguage] = useState('');
@@ -32,6 +35,7 @@ const AdminDashboard = () => {
     const [correctAnswer, setCorrectAnswer] = useState('');
     
     // Form states for Round 2
+    const [round2Language, setRound2Language] = useState('');
     const [round2QuestionId, setRound2QuestionId] = useState('');
     const [round2Question, setRound2Question] = useState('');
     const [round2QuestionImage, setRound2QuestionImage] = useState('');
@@ -39,9 +43,21 @@ const AdminDashboard = () => {
     const [round2OptionImages, setRound2OptionImages] = useState(['', '', '', '']);
     const [round2CorrectAnswer, setRound2CorrectAnswer] = useState('');
     
+    // States for question deletion
+    const [deleteRound, setDeleteRound] = useState(1);
+    const [deleteLanguage, setDeleteLanguage] = useState('python');
+    const [deleteQuestionId, setDeleteQuestionId] = useState('');
+
+    // States for participant creation
+    const [newParticipantEnrollment, setNewParticipantEnrollment] = useState('');
+    const [newParticipantUsername, setNewParticipantUsername] = useState('');
+    const [newParticipantPassword, setNewParticipantPassword] = useState('');
+    const [isCreatingParticipant, setIsCreatingParticipant] = useState(false);
+    
     // Validation and notification states
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
@@ -144,11 +160,6 @@ const AdminDashboard = () => {
         const newErrors = {};
         
         if (!language) newErrors.language = 'Language is required';
-        if (!questionId) {
-            newErrors.questionId = 'Question ID is required';
-        } else if (isNaN(parseInt(questionId))) {
-            newErrors.questionId = 'Question ID must be a number';
-        }
         
         if (!question) newErrors.question = 'Question is required';
         
@@ -171,7 +182,7 @@ const AdminDashboard = () => {
         
         try {
             const questionData = {
-                id: parseInt(questionId),
+                id: questionId ? parseInt(questionId) : undefined, // Backend will generate if not provided
                 question,
                 options,
                 correctAnswer: parseInt(correctAnswer)
@@ -186,6 +197,9 @@ const AdminDashboard = () => {
             setQuestion('');
             setOptions(['', '', '', '']);
             setCorrectAnswer('');
+            
+            // Hide the form
+            setShowQuestionForm(false);
             
             // Show success message
             setSnackbar({
@@ -240,21 +254,12 @@ const AdminDashboard = () => {
     const validateRound2Form = () => {
         const newErrors = {};
         
-        if (!round2QuestionId) {
-            newErrors.round2QuestionId = 'Question ID is required';
-        } else if (isNaN(parseInt(round2QuestionId))) {
-            newErrors.round2QuestionId = 'Question ID must be a number';
-        }
-        
+        if (!round2Language) newErrors.round2Language = 'Language is required';
         if (!round2Question) newErrors.round2Question = 'Question is required';
         if (!round2QuestionImage) newErrors.round2QuestionImage = 'Question image is required';
         
         round2Options.forEach((option, index) => {
             if (!option) newErrors[`round2Option${index}`] = `Option ${index + 1} is required`;
-        });
-        
-        round2OptionImages.forEach((image, index) => {
-            if (!image) newErrors[`round2OptionImage${index}`] = `Option ${index + 1} image is required`;
         });
         
         if (round2CorrectAnswer === '') newErrors.round2CorrectAnswer = 'Correct answer is required';
@@ -272,7 +277,8 @@ const AdminDashboard = () => {
         
         try {
             const questionData = {
-                id: parseInt(round2QuestionId),
+                id: round2QuestionId ? parseInt(round2QuestionId) : undefined, // Backend will generate if not provided
+                language: round2Language,
                 question: round2Question,
                 questionImage: round2QuestionImage,
                 options: round2Options,
@@ -284,12 +290,16 @@ const AdminDashboard = () => {
             const response = await axios.post('http://localhost:5000/api/admin/questions/round2', questionData);
             
             // Reset form
+            setRound2Language('');
             setRound2QuestionId('');
             setRound2Question('');
             setRound2QuestionImage('');
             setRound2Options(['', '', '', '']);
             setRound2OptionImages(['', '', '', '']);
             setRound2CorrectAnswer('');
+            
+            // Hide the form
+            setShowRound2QuestionForm(false);
             
             // Show success message
             setSnackbar({
@@ -308,6 +318,49 @@ const AdminDashboard = () => {
             });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+    
+    // Handle delete question form submission
+    const handleDeleteQuestion = async (e) => {
+        e.preventDefault();
+        if (!deleteQuestionId || isNaN(parseInt(deleteQuestionId))) {
+            setSnackbar({
+                open: true,
+                message: 'Please enter a valid question ID',
+                severity: 'error'
+            });
+            return;
+        }
+
+        setIsDeleting(true);
+        try {
+            const deleteData = {
+                round: deleteRound,
+                question_id: parseInt(deleteQuestionId),
+                language: deleteRound === 3 ? undefined : deleteLanguage
+            };
+
+            const response = await axios.post('http://localhost:5000/api/admin/questions/delete', deleteData);
+            
+            // Reset form
+            setDeleteQuestionId('');
+            setShowDeleteQuestionForm(false);
+            
+            setSnackbar({
+                open: true,
+                message: `Question ${deleteQuestionId} deleted successfully!`,
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error deleting question:', error);
+            setSnackbar({
+                open: true,
+                message: error.response?.data?.error || 'Failed to delete question',
+                severity: 'error'
+            });
+        } finally {
+            setIsDeleting(false);
         }
     };
     
@@ -436,6 +489,74 @@ const AdminDashboard = () => {
 
     // Other existing show/hide functions...
 
+    // Function to validate participant creation form
+    const validateParticipantForm = () => {
+        const newErrors = {};
+        
+        if (!newParticipantEnrollment) 
+            newErrors.enrollment = 'Enrollment number is required';
+        else if (!/^\d{12}$/.test(newParticipantEnrollment)) 
+            newErrors.enrollment = 'Enrollment number should be 12 digits';
+            
+        if (!newParticipantUsername) 
+            newErrors.username = 'Username is required';
+            
+        if (!newParticipantPassword) 
+            newErrors.password = 'Password is required';
+        else if (newParticipantPassword.length < 6)
+            newErrors.password = 'Password must be at least 6 characters';
+            
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+    
+    // Function to create a new participant
+    const handleCreateParticipant = async (e) => {
+        e.preventDefault();
+        
+        if (!validateParticipantForm()) return;
+        
+        setIsCreatingParticipant(true);
+        
+        try {
+            const participantData = {
+                admin_id: user.id,
+                enrollment_no: newParticipantEnrollment,
+                username: newParticipantUsername,
+                password: newParticipantPassword
+            };
+            
+            // Call the backend API to create the participant
+            const response = await axios.post('http://localhost:5000/api/admin/participants/create', participantData);
+            
+            // Reset form
+            setNewParticipantEnrollment('');
+            setNewParticipantUsername('');
+            setNewParticipantPassword('');
+            
+            // Hide the form
+            setShowCreateParticipantForm(false);
+            
+            // Show success message
+            setSnackbar({
+                open: true,
+                message: 'Participant created successfully!',
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error creating participant:', error);
+            
+            // Show error message
+            setSnackbar({
+                open: true,
+                message: error.response?.data?.error || 'Failed to create participant',
+                severity: 'error'
+            });
+        } finally {
+            setIsCreatingParticipant(false);
+        }
+    };
+
     return (
         <Box sx={{ 
             width: '100%',
@@ -552,6 +673,7 @@ const AdminDashboard = () => {
                                             setShowRound2QuestionForm(false);
                                             setShowRound3Submissions(false);
                                             setShowRoundAccessManager(false);
+                                            setShowDeleteQuestionForm(false);
                                         }}
                                     >
                                         <Typography variant="h6" gutterBottom>
@@ -594,6 +716,7 @@ const AdminDashboard = () => {
                                             setShowQuestionForm(false);
                                             setShowRound3Submissions(false);
                                             setShowRoundAccessManager(false);
+                                            setShowDeleteQuestionForm(false);
                                         }}
                                     >
                                         <Typography variant="h6" gutterBottom>
@@ -633,10 +756,11 @@ const AdminDashboard = () => {
                                         }}
                                         onClick={() => {
                                             setShowRound3Submissions(true);
+                                            fetchRound3Submissions();
                                             setShowQuestionForm(false);
                                             setShowRound2QuestionForm(false);
                                             setShowRoundAccessManager(false);
-                                            fetchRound3Submissions();
+                                            setShowDeleteQuestionForm(false);
                                         }}
                                     >
                                         <Typography variant="h6" gutterBottom>
@@ -685,13 +809,101 @@ const AdminDashboard = () => {
                                     </Paper>
                                 </MotionBox>
                             </Grid>
+
+                            {/* Delete Question Card */}
+                            <Grid item xs={12} sm={6} md={3}>
+                                <MotionBox
+                                    custom={3}
+                                    variants={cardVariants}
+                                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                    whileTap={{ scale: 0.98 }}
+                                >
+                                    <Paper
+                                        elevation={3}
+                                        sx={{
+                                            p: 3,
+                                            height: '100%',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            borderRadius: 3,
+                                            bgcolor: 'error.main',
+                                            color: 'white',
+                                            transition: 'all 0.3s',
+                                            cursor: 'pointer',
+                                            '&:hover': {
+                                                transform: 'translateY(-5px)',
+                                                boxShadow: 6
+                                            }
+                                        }}
+                                        onClick={() => {
+                                            setShowDeleteQuestionForm(true);
+                                            setShowQuestionForm(false);
+                                            setShowRound2QuestionForm(false);
+                                            setShowRound3Submissions(false);
+                                            setShowRoundAccessManager(false);
+                                            setShowCreateParticipantForm(false);
+                                        }}
+                                    >
+                                        <Typography variant="h6" gutterBottom>
+                                            Delete Question
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ mb: 2, flex: 1 }}>
+                                            Remove existing questions from the database.
+                                        </Typography>
+                                    </Paper>
+                                </MotionBox>
+                            </Grid>
+
+                            {/* Create Participant Card */}
+                            <Grid item xs={12} sm={6} md={3}>
+                                <MotionBox
+                                    custom={4}
+                                    variants={cardVariants}
+                                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                                    whileTap={{ scale: 0.98 }}
+                                >
+                                    <Paper
+                                        elevation={3}
+                                        sx={{
+                                            p: 3,
+                                            height: '100%',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            borderRadius: 3,
+                                            bgcolor: 'success.dark',
+                                            color: 'white',
+                                            transition: 'all 0.3s',
+                                            cursor: 'pointer',
+                                            '&:hover': {
+                                                transform: 'translateY(-5px)',
+                                                boxShadow: 6
+                                            }
+                                        }}
+                                        onClick={() => {
+                                            setShowCreateParticipantForm(true);
+                                            setShowDeleteQuestionForm(false);
+                                            setShowQuestionForm(false);
+                                            setShowRound2QuestionForm(false);
+                                            setShowRound3Submissions(false);
+                                            setShowRoundAccessManager(false);
+                                        }}
+                                    >
+                                        <Typography variant="h6" gutterBottom>
+                                            Create Participant
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ mb: 2, flex: 1 }}>
+                                            Add new test participants to the competition.
+                                        </Typography>
+                                    </Paper>
+                                </MotionBox>
+                            </Grid>
                         </Grid>
                         
                         {/* Show Round Access Manager */}
                         {showRoundAccessManager && (
                             <Paper
                                 elevation={0}
-                                        sx={{
+                                sx={{
                                     p: 4,
                                     mb: 4,
                                     borderRadius: 2,
@@ -719,7 +931,7 @@ const AdminDashboard = () => {
                                     for that round, even if they are qualified.
                                 </Typography>
                                 
-                                <Grid container spacing={3}>
+                                    <Grid container spacing={3}>
                                     {/* Round 1 Access Control */}
                                     <Grid item xs={12} md={4}>
                                         <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
@@ -846,431 +1058,377 @@ const AdminDashboard = () => {
                             </Paper>
                         )}
                         
-                        {/* Round 1 Question Form */}
-                        {showQuestionForm && (
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: 4,
-                                    backgroundColor: 'rgba(26, 26, 46, 0.8)',
-                                    borderRadius: 3,
-                                    border: '1px solid',
-                                    borderColor: 'primary.main',
-                                    mb: 4,
-                                    textAlign: 'left'
-                                }}
-                            >
-                                <Typography 
-                                    variant="h5" 
-                                    sx={{ 
-                                        color: 'primary.main',
-                                        fontWeight: 600,
-                                        mb: 3,
-                                        textAlign: 'center'
-                                    }}
-                                >
-                                    Add New Question
-                                </Typography>
-                                
+                        {/* Round 1 Question Form - Dialog */}
+                        <Dialog
+                            open={showQuestionForm}
+                            onClose={() => setShowQuestionForm(false)}
+                            maxWidth="md"
+                                                fullWidth 
+                        >
+                            <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                Add Question for Round 1
+                            </DialogTitle>
+                            <DialogContent sx={{ mt: 2 }}>
                                 <form onSubmit={handleSubmit}>
                                     <Grid container spacing={3}>
-                                        <Grid item xs={12} md={6}>
-                                            <FormControl 
-                                                fullWidth 
-                                                error={!!errors.language}
-                                                sx={{ mb: 2 }}
-                                            >
-                                                <InputLabel id="language-label">Programming Language</InputLabel>
+                                        <Grid item xs={12}>
+                                            <FormControl fullWidth error={!!errors.language}>
+                                                <InputLabel id="language-label">Language</InputLabel>
                                                 <Select
                                                     labelId="language-label"
+                                                    id="language"
                                                     value={language}
-                                                    label="Programming Language"
+                                                    label="Language"
                                                     onChange={(e) => setLanguage(e.target.value)}
+                                                    required
                                                 >
                                                     <MenuItem value="python">Python</MenuItem>
                                                     <MenuItem value="c">C</MenuItem>
                                                 </Select>
-                                                {errors.language && (
-                                                    <FormHelperText>{errors.language}</FormHelperText>
-                                                )}
+                                                {errors.language && <FormHelperText>{errors.language}</FormHelperText>}
                                             </FormControl>
                                         </Grid>
                                         
-                                        <Grid item xs={12} md={6}>
+                                        <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
-                                                label="Question ID"
-                                                variant="outlined"
+                                                id="questionId"
+                                                label="Question ID (Optional - Auto-generated if empty)"
                                                 value={questionId}
                                                 onChange={(e) => setQuestionId(e.target.value)}
                                                 error={!!errors.questionId}
                                                 helperText={errors.questionId}
-                                                sx={{ mb: 2 }}
-                                                InputLabelProps={{
-                                                    sx: { color: 'text.secondary' }
-                                                }}
-                                                inputProps={{
-                                                    sx: { color: 'text.primary' }
-                                                }}
                                             />
                                         </Grid>
                                         
                                         <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
+                                                id="question"
                                                 label="Question"
-                                                variant="outlined"
                                                 multiline
-                                                rows={2}
+                                                rows={3}
                                                 value={question}
                                                 onChange={(e) => setQuestion(e.target.value)}
+                                                required
                                                 error={!!errors.question}
                                                 helperText={errors.question}
-                                                sx={{ mb: 3 }}
-                                                InputLabelProps={{
-                                                    sx: { color: 'text.secondary' }
-                                                }}
-                                                inputProps={{
-                                                    sx: { color: 'text.primary' }
-                                                }}
                                             />
                                         </Grid>
                                         
                                         {options.map((option, index) => (
-                                            <Grid item xs={12} md={6} key={index}>
+                                            <Grid item xs={12} key={index}>
                                                 <TextField
                                                     fullWidth
+                                                    id={`option-${index}`}
                                                     label={`Option ${index + 1}`}
-                                                    variant="outlined"
                                                     value={option}
                                                     onChange={(e) => handleOptionChange(index, e.target.value)}
+                                                    required
                                                     error={!!errors[`option${index}`]}
                                                     helperText={errors[`option${index}`]}
-                                                    sx={{ mb: 2 }}
-                                                    InputLabelProps={{
-                                                        sx: { color: 'text.secondary' }
-                                                    }}
-                                                    inputProps={{
-                                                        sx: { color: 'text.primary' }
-                                                    }}
                                                 />
                                             </Grid>
                                         ))}
                                         
                                         <Grid item xs={12}>
-                                            <Typography 
-                                                variant="body1"
-                                                sx={{ 
-                                                    color: 'text.secondary',
-                                                    mb: 1
-                                                }}
-                                            >
-                                                Correct Answer:
-                                            </Typography>
-                                            <FormControl 
-                                                component="fieldset" 
-                                                error={!!errors.correctAnswer}
-                                                sx={{ mb: 3 }}
-                                            >
-                                                <RadioGroup
-                                                    row
+                                            <FormControl component="fieldset" error={!!errors.correctAnswer}>
+                                                <InputLabel id="correct-answer-label">Correct Answer</InputLabel>
+                                                <Select
+                                                    labelId="correct-answer-label"
+                                                    id="correctAnswer"
                                                     value={correctAnswer}
+                                                    label="Correct Answer"
                                                     onChange={(e) => setCorrectAnswer(e.target.value)}
+                                                    required
                                                 >
-                                                    {[0, 1, 2, 3].map((index) => (
-                                                        <FormControlLabel
-                                                            key={index}
-                                                            value={index.toString()}
-                                                            control={
-                                                                <Radio 
-                                                                    sx={{
-                                                                        color: 'text.secondary',
-                                                                        '&.Mui-checked': {
-                                                                            color: 'primary.main',
-                                                                        }
-                                                                    }}
-                                                                />
-                                                            }
-                                                            label={`Option ${index + 1}`}
-                                                            sx={{ color: 'text.primary' }}
-                                                        />
-                                                    ))}
-                                                </RadioGroup>
-                                                {errors.correctAnswer && (
-                                                    <FormHelperText>{errors.correctAnswer}</FormHelperText>
-                                                )}
+                                                    <MenuItem value="0">Option 1</MenuItem>
+                                                    <MenuItem value="1">Option 2</MenuItem>
+                                                    <MenuItem value="2">Option 3</MenuItem>
+                                                    <MenuItem value="3">Option 4</MenuItem>
+                                                </Select>
+                                                {errors.correctAnswer && <FormHelperText>{errors.correctAnswer}</FormHelperText>}
                                             </FormControl>
                                         </Grid>
+                                        </Grid>
                                         
-                                        <Grid item xs={12} sx={{ textAlign: 'center' }}>
+                                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                                        <Button 
+                                            variant="outlined" 
+                                            onClick={() => setShowQuestionForm(false)}
+                                        >
+                                            Cancel
+                                        </Button>
                                             <Button
                                                 type="submit"
                                                 variant="contained"
-                                                size="large"
                                                 disabled={isSubmitting}
-                                                sx={{ 
-                                                    minWidth: 200,
-                                                    py: 1.5
-                                                }}
+                                            startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
                                             >
                                                 {isSubmitting ? 'Adding...' : 'Add Question'}
                                             </Button>
-                                        </Grid>
-                                    </Grid>
+                                    </Box>
                                 </form>
-                            </Paper>
-                        )}
+                            </DialogContent>
+                        </Dialog>
                         
-                        {/* Round 2 Question Form */}
-                        {showRound2QuestionForm && (
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: 4,
-                                    backgroundColor: 'rgba(26, 26, 46, 0.8)',
-                                    borderRadius: 3,
-                                    border: '1px solid',
-                                    borderColor: 'primary.main',
-                                    mb: 4,
-                                    textAlign: 'left'
-                                }}
-                            >
-                                <Typography 
-                                    variant="h5" 
-                                    sx={{ 
-                                        color: 'primary.main',
-                                        fontWeight: 600,
-                                        mb: 3,
-                                        textAlign: 'center'
-                                    }}
-                                >
-                                    Add New Round 2 Question (with Images)
-                                </Typography>
-                                
+                        {/* Round 2 Question Form - Dialog */}
+                        <Dialog
+                            open={showRound2QuestionForm}
+                            onClose={() => setShowRound2QuestionForm(false)}
+                            maxWidth="md"
+                            fullWidth
+                        >
+                            <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                Add Question for Round 2
+                            </DialogTitle>
+                            <DialogContent sx={{ mt: 2 }}>
                                 <form onSubmit={handleRound2Submit}>
                                     <Grid container spacing={3}>
                                         <Grid item xs={12}>
+                                            <FormControl fullWidth error={!!errors.round2Language}>
+                                                <InputLabel id="round2-language-label">Language</InputLabel>
+                                                <Select
+                                                    labelId="round2-language-label"
+                                                    id="round2Language"
+                                                    value={round2Language}
+                                                    label="Language"
+                                                    onChange={(e) => setRound2Language(e.target.value)}
+                                                    required
+                                                >
+                                                    <MenuItem value="python">Python</MenuItem>
+                                                    <MenuItem value="c">C</MenuItem>
+                                                </Select>
+                                                {errors.round2Language && <FormHelperText>{errors.round2Language}</FormHelperText>}
+                                            </FormControl>
+                                        </Grid>
+                                        
+                                        <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
-                                                label="Question ID"
-                                                variant="outlined"
+                                                id="round2QuestionId"
+                                                label="Question ID (Optional - Auto-generated if empty)"
                                                 value={round2QuestionId}
                                                 onChange={(e) => setRound2QuestionId(e.target.value)}
                                                 error={!!errors.round2QuestionId}
                                                 helperText={errors.round2QuestionId}
-                                                sx={{ mb: 2 }}
-                                                InputLabelProps={{
-                                                    sx: { color: 'text.secondary' }
-                                                }}
-                                                inputProps={{
-                                                    sx: { color: 'text.primary' }
-                                                }}
                                             />
                                         </Grid>
                                         
                                         <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
+                                                id="round2Question"
                                                 label="Question"
-                                                variant="outlined"
                                                 multiline
-                                                rows={2}
+                                                rows={3}
                                                 value={round2Question}
                                                 onChange={(e) => setRound2Question(e.target.value)}
+                                                required
                                                 error={!!errors.round2Question}
                                                 helperText={errors.round2Question}
-                                                sx={{ mb: 3 }}
-                                                InputLabelProps={{
-                                                    sx: { color: 'text.secondary' }
-                                                }}
-                                                inputProps={{
-                                                    sx: { color: 'text.primary' }
-                                                }}
                                             />
                                         </Grid>
                                         
                                         <Grid item xs={12}>
-                                            <Typography 
-                                                variant="body1"
-                                                sx={{ 
-                                                    color: 'text.secondary',
-                                                    mb: 1
-                                                }}
-                                            >
-                                                Question Image:
+                                            <Typography variant="subtitle1" gutterBottom>
+                                                Question Image
                                             </Typography>
                                             <input
                                                 accept="image/*"
-                                                type="file"
-                                                id="question-image-upload"
-                                                onChange={handleQuestionImageUpload}
                                                 style={{ display: 'none' }}
+                                                id="question-image-upload"
+                                                type="file"
+                                                onChange={handleQuestionImageUpload}
                                             />
                                             <label htmlFor="question-image-upload">
-                                                <Button 
-                                                    variant="contained" 
-                                                    component="span"
-                                                    sx={{ mb: 1 }}
-                                                >
+                                                <Button variant="outlined" component="span">
                                                     Upload Image
                                                 </Button>
                                             </label>
-                                            {errors.round2QuestionImage && (
-                                                <FormHelperText error>{errors.round2QuestionImage}</FormHelperText>
-                                            )}
                                             {round2QuestionImage && (
-                                                <Box sx={{ mt: 2, mb: 3, textAlign: 'center' }}>
+                                                <Box sx={{ mt: 2, maxWidth: '300px' }}>
                                                     <img 
                                                         src={round2QuestionImage} 
-                                                        alt="Question Preview" 
-                                                        style={{ 
-                                                            maxWidth: '100%', 
-                                                            maxHeight: '200px',
-                                                            border: '1px solid #ccc' 
-                                                        }} 
+                                                        alt="Question" 
+                                                        style={{ width: '100%', borderRadius: '4px' }} 
                                                     />
                                                 </Box>
+                                            )}
+                                            {errors.round2QuestionImage && (
+                                                <FormHelperText error>{errors.round2QuestionImage}</FormHelperText>
                                             )}
                                         </Grid>
                                         
                                         {round2Options.map((option, index) => (
                                             <Grid item xs={12} key={index}>
-                                                <Box sx={{ mb: 3, p: 2, border: '1px solid rgba(255, 255, 255, 0.2)', borderRadius: 1 }}>
-                                                    <Typography 
-                                                        variant="h6"
-                                                        sx={{ 
-                                                            color: 'primary.main',
-                                                            mb: 2
-                                                        }}
-                                                    >
-                                                        Option {index + 1}
-                                                    </Typography>
-                                                    
+                                                <Grid container spacing={2}>
+                                                    <Grid item xs={12} sm={6}>
                                                     <TextField
                                                         fullWidth
-                                                        label={`Option ${index + 1} Text`}
-                                                        variant="outlined"
+                                                            id={`round2-option-${index}`}
+                                                            label={`Option ${index + 1}`}
                                                         value={option}
                                                         onChange={(e) => handleRound2OptionChange(index, e.target.value)}
+                                                            required
                                                         error={!!errors[`round2Option${index}`]}
                                                         helperText={errors[`round2Option${index}`]}
-                                                        sx={{ mb: 2 }}
-                                                        InputLabelProps={{
-                                                            sx: { color: 'text.secondary' }
-                                                        }}
-                                                        inputProps={{
-                                                            sx: { color: 'text.primary' }
-                                                        }}
-                                                    />
-                                                    
-                                                    <Typography 
-                                                        variant="body1"
-                                                        sx={{ 
-                                                            color: 'text.secondary',
-                                                            mb: 1
-                                                        }}
-                                                    >
-                                                        Option Image:
+                                                        />
+                                                    </Grid>
+                                                    <Grid item xs={12} sm={6}>
+                                                        <Typography variant="subtitle2" gutterBottom>
+                                                            Option {index + 1} Image (Optional)
                                                     </Typography>
                                                     <input
                                                         accept="image/*"
-                                                        type="file"
+                                                            style={{ display: 'none' }}
                                                         id={`option-image-upload-${index}`}
+                                                            type="file"
                                                         onChange={(e) => handleOptionImageUpload(index, e)}
-                                                        style={{ display: 'none' }}
                                                     />
                                                     <label htmlFor={`option-image-upload-${index}`}>
-                                                        <Button 
-                                                            variant="contained" 
-                                                            component="span"
-                                                            sx={{ mb: 1 }}
-                                                        >
+                                                            <Button variant="outlined" component="span" size="small">
                                                             Upload Image
                                                         </Button>
                                                     </label>
-                                                    {errors[`round2OptionImage${index}`] && (
-                                                        <FormHelperText error>{errors[`round2OptionImage${index}`]}</FormHelperText>
-                                                    )}
                                                     {round2OptionImages[index] && (
-                                                        <Box sx={{ mt: 2, textAlign: 'center' }}>
+                                                            <Box sx={{ mt: 1, maxWidth: '150px' }}>
                                                             <img 
                                                                 src={round2OptionImages[index]} 
-                                                                alt={`Option ${index + 1} Preview`} 
-                                                                style={{ 
-                                                                    maxWidth: '100%', 
-                                                                    maxHeight: '150px',
-                                                                    border: '1px solid #ccc' 
-                                                                }} 
+                                                                    alt={`Option ${index + 1}`} 
+                                                                    style={{ width: '100%', borderRadius: '4px' }} 
                                                             />
                                                         </Box>
                                                     )}
-                                                </Box>
+                                                    </Grid>
+                                                </Grid>
                                             </Grid>
                                         ))}
                                         
                                         <Grid item xs={12}>
-                                            <Typography 
-                                                variant="body1"
-                                                sx={{ 
-                                                    color: 'text.secondary',
-                                                    mb: 1
-                                                }}
-                                            >
-                                                Correct Answer:
-                                            </Typography>
-                                            <FormControl 
-                                                component="fieldset" 
-                                                error={!!errors.round2CorrectAnswer}
-                                                sx={{ mb: 3 }}
-                                            >
-                                                <RadioGroup
-                                                    row
+                                            <FormControl component="fieldset" error={!!errors.round2CorrectAnswer}>
+                                                <InputLabel id="round2-correct-answer-label">Correct Answer</InputLabel>
+                                                <Select
+                                                    labelId="round2-correct-answer-label"
+                                                    id="round2CorrectAnswer"
                                                     value={round2CorrectAnswer}
+                                                    label="Correct Answer"
                                                     onChange={(e) => setRound2CorrectAnswer(e.target.value)}
+                                                    required
                                                 >
-                                                    {[0, 1, 2, 3].map((index) => (
-                                                        <FormControlLabel
-                                                            key={index}
-                                                            value={index.toString()}
-                                                            control={
-                                                                <Radio 
-                                                                    sx={{
-                                                                        color: 'text.secondary',
-                                                                        '&.Mui-checked': {
-                                                                            color: 'primary.main',
-                                                                        }
-                                                                    }}
-                                                                />
-                                                            }
-                                                            label={`Option ${index + 1}`}
-                                                            sx={{ color: 'text.primary' }}
-                                                        />
-                                                    ))}
-                                                </RadioGroup>
-                                                {errors.round2CorrectAnswer && (
-                                                    <FormHelperText>{errors.round2CorrectAnswer}</FormHelperText>
-                                                )}
+                                                    <MenuItem value="0">Option 1</MenuItem>
+                                                    <MenuItem value="1">Option 2</MenuItem>
+                                                    <MenuItem value="2">Option 3</MenuItem>
+                                                    <MenuItem value="3">Option 4</MenuItem>
+                                                </Select>
+                                                {errors.round2CorrectAnswer && <FormHelperText>{errors.round2CorrectAnswer}</FormHelperText>}
                                             </FormControl>
                                         </Grid>
+                                        </Grid>
                                         
-                                        <Grid item xs={12} sx={{ textAlign: 'center' }}>
+                                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                                        <Button 
+                                            variant="outlined" 
+                                            onClick={() => setShowRound2QuestionForm(false)}
+                                        >
+                                            Cancel
+                                        </Button>
                                             <Button
                                                 type="submit"
                                                 variant="contained"
-                                                size="large"
                                                 disabled={isSubmitting}
-                                                sx={{ 
-                                                    minWidth: 200,
-                                                    py: 1.5
-                                                }}
+                                            startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
                                             >
-                                                {isSubmitting ? 'Adding...' : 'Add Round 2 Question'}
+                                            {isSubmitting ? 'Adding...' : 'Add Question'}
                                             </Button>
+                                    </Box>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                        
+                        {/* Delete Question Form - Dialog */}
+                        <Dialog
+                            open={showDeleteQuestionForm}
+                            onClose={() => setShowDeleteQuestionForm(false)}
+                            maxWidth="sm"
+                            fullWidth
+                        >
+                            <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                Delete Question
+                            </DialogTitle>
+                            <DialogContent sx={{ mt: 2 }}>
+                                <form onSubmit={handleDeleteQuestion}>
+                                    <Grid container spacing={3}>
+                                        <Grid item xs={12}>
+                                            <FormControl fullWidth>
+                                                <InputLabel id="delete-round-label">Round</InputLabel>
+                                                <Select
+                                                    labelId="delete-round-label"
+                                                    id="deleteRound"
+                                                    value={deleteRound}
+                                                    label="Round"
+                                                    onChange={(e) => setDeleteRound(e.target.value)}
+                                                    required
+                                                >
+                                                    <MenuItem value={1}>Round 1</MenuItem>
+                                                    <MenuItem value={2}>Round 2</MenuItem>
+                                                    <MenuItem value={3}>Round 3</MenuItem>
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
+                                        
+                                        {(deleteRound === 1 || deleteRound === 2) && (
+                                            <Grid item xs={12}>
+                                                <FormControl fullWidth>
+                                                    <InputLabel id="delete-language-label">Language</InputLabel>
+                                                    <Select
+                                                        labelId="delete-language-label"
+                                                        id="deleteLanguage"
+                                                        value={deleteLanguage}
+                                                        label="Language"
+                                                        onChange={(e) => setDeleteLanguage(e.target.value)}
+                                                        required
+                                                    >
+                                                        <MenuItem value="python">Python</MenuItem>
+                                                        <MenuItem value="c">C</MenuItem>
+                                                    </Select>
+                                                </FormControl>
+                                    </Grid>
+                                        )}
+                                        
+                                        <Grid item xs={12}>
+                                            <TextField
+                                                fullWidth
+                                                id="deleteQuestionId"
+                                                label="Question ID"
+                                                value={deleteQuestionId}
+                                                onChange={(e) => setDeleteQuestionId(e.target.value)}
+                                                required
+                                                type="number"
+                                            />
                                         </Grid>
                                     </Grid>
+
+                                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                                        <Button 
+                                            variant="outlined" 
+                                            onClick={() => setShowDeleteQuestionForm(false)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button 
+                                            type="submit" 
+                                            variant="contained" 
+                                            color="error"
+                                            disabled={isDeleting}
+                                            startIcon={isDeleting ? <CircularProgress size={20} /> : null}
+                                        >
+                                            {isDeleting ? 'Deleting...' : 'Delete Question'}
+                                        </Button>
+                                    </Box>
                                 </form>
-                            </Paper>
-                        )}
+                            </DialogContent>
+                        </Dialog>
                         
                         {/* Round 3 Submissions */}
                         {showRound3Submissions && (
@@ -1515,6 +1673,89 @@ const AdminDashboard = () => {
                     </MotionPaper>
                 </Container>
             </Box>
+            
+            {/* Participant Creation Form - Dialog */}
+            <Dialog
+                open={showCreateParticipantForm}
+                onClose={() => setShowCreateParticipantForm(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                    Create New Participant
+                </DialogTitle>
+                <DialogContent sx={{ mt: 2 }}>
+                    <form onSubmit={handleCreateParticipant}>
+                        <Grid container spacing={3} sx={{ mt: 0 }}>
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    id="participantEnrollment"
+                                    label="Enrollment Number"
+                                    value={newParticipantEnrollment}
+                                    onChange={(e) => setNewParticipantEnrollment(e.target.value)}
+                                    required
+                                    error={!!errors.enrollment}
+                                    helperText={errors.enrollment}
+                                    InputProps={{
+                                        sx: { color: 'text.primary' }
+                                    }}
+                                />
+                            </Grid>
+                            
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    id="participantUsername"
+                                    label="Username"
+                                    value={newParticipantUsername}
+                                    onChange={(e) => setNewParticipantUsername(e.target.value)}
+                                    required
+                                    error={!!errors.username}
+                                    helperText={errors.username}
+                                    InputProps={{
+                                        sx: { color: 'text.primary' }
+                                    }}
+                                />
+                            </Grid>
+                            
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    id="participantPassword"
+                                    label="Password"
+                                    type="password"
+                                    value={newParticipantPassword}
+                                    onChange={(e) => setNewParticipantPassword(e.target.value)}
+                                    required
+                                    error={!!errors.password}
+                                    helperText={errors.password}
+                                    InputProps={{
+                                        sx: { color: 'text.primary' }
+                                    }}
+                                />
+                            </Grid>
+                        </Grid>
+
+                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                            <Button 
+                                variant="outlined" 
+                                onClick={() => setShowCreateParticipantForm(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button 
+                                type="submit" 
+                                variant="contained" 
+                                disabled={isCreatingParticipant}
+                                startIcon={isCreatingParticipant ? <CircularProgress size={20} /> : null}
+                            >
+                                {isCreatingParticipant ? 'Creating...' : 'Create Participant'}
+                            </Button>
+                        </Box>
+                    </form>
+                </DialogContent>
+            </Dialog>
             
             {/* Snackbar for notifications */}
             <Snackbar 

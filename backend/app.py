@@ -12,8 +12,17 @@ import random  # Add import for shuffling questions
 from flask_compress import Compress  # Import Flask-Compress
 
 app = Flask(__name__)
-CORS(app)
+# Enable CORS for all routes with additional options
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]}})
 Compress(app)  # Initialize Flask-Compress to reduce response size
+
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+    return response
 
 # Create directories for storing images
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -45,6 +54,8 @@ class User(db.Model):
     
     # Relationship with QuizResult
     results = db.relationship('QuizResult', backref='user', lazy=True)
+    # Relationship with UserScore - removing backref to avoid circular reference
+    scores = db.relationship('UserScore', lazy=True)
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -88,6 +99,19 @@ class RoundAccess(db.Model):
     def __repr__(self):
         return f'<RoundAccess {self.round_number}>'
 
+# New UserScore model to track detailed scoring
+class UserScore(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    round_number = db.Column(db.Integer, nullable=False)
+    raw_score = db.Column(db.Integer, default=0)
+    penalty_points = db.Column(db.Integer, default=0)
+    total_score = db.Column(db.Integer, default=0)
+    completion_time = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<UserScore {self.id} for User {self.user_id} Round {self.round_number}>'
+
 # Create database tables and admin user
 with app.app_context():
     # Check if we need to migrate data
@@ -114,58 +138,145 @@ with app.app_context():
     db.session.add(round2_access)
     db.session.add(round3_access)
     
-    # Always create an admin user
-    admin_password = generate_password_hash('admin')
-    admin_user = User(
-        enrollment_no='231260107017',
-        username='admin',
-        password=admin_password,
-        is_admin=True,
-        current_round=3,  # Admin has access to all rounds
-        registered_at=datetime.utcnow(),
-        total_score=0,
-        qualified_for_round3=True  # Admin is always qualified
-    )
-    db.session.add(admin_user)
+    # Load admin credentials from admin.json file
+    admin_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'admin.json')
+    admin_created = False
     
-    # Create predefined participant accounts
-    participants = [
-        {
-            'enrollment_no': '231260100001',
-            'username': 'participant1',
-            'password': 'password123',
-            'is_admin': False
-        },
-        {
-            'enrollment_no': '231260100002',
-            'username': 'participant2',
-            'password': 'password123',
-            'is_admin': False
-        },
-        {
-            'enrollment_no': '231260100003',
-            'username': 'participant3',
-            'password': 'password123',
-            'is_admin': False
-        },
-        # Add more predefined users as needed
-    ]
+    if os.path.exists(admin_file_path):
+        try:
+            with open(admin_file_path, 'r') as file:
+                admin_data = json.load(file)
+                
+                # Create admin user from file data
+                admin_password = generate_password_hash(admin_data['password'])
+                admin_user = User(
+                    enrollment_no=admin_data['enrollment_no'],
+                    username=admin_data['username'],
+                    password=admin_password,
+                    is_admin=True,
+                    current_round=3,  # Admin has access to all rounds
+                    registered_at=datetime.utcnow(),
+                    total_score=0,
+                    qualified_for_round3=True  # Admin is always qualified
+                )
+                db.session.add(admin_user)
+                admin_created = True
+                print(f"Admin user created from admin.json: {admin_data['username']}")
+        except Exception as e:
+            print(f"Error loading admin credentials from JSON: {str(e)}")
     
-    for participant in participants:
-        hashed_password = generate_password_hash(participant['password'])
-        user = User(
-            enrollment_no=participant['enrollment_no'],
-            username=participant['username'],
-            password=hashed_password,
-            is_admin=participant['is_admin'],
-            current_round=1,
+    # Create default admin if no admin.json file or error loading it
+    if not admin_created:
+        print("Warning: No admin.json file found or error loading it. Creating default admin.")
+        admin_password = generate_password_hash('admin')
+        admin_user = User(
+            enrollment_no='231260107017',
+            username='admin',
+            password=admin_password,
+            is_admin=True,
+            current_round=3,  # Admin has access to all rounds
+            registered_at=datetime.utcnow(),
             total_score=0,
-            qualified_for_round3=False  # New users are not qualified for Round 3 by default
+            qualified_for_round3=True  # Admin is always qualified
         )
-        db.session.add(user)
+        db.session.add(admin_user)
+    
+    # Load participants from JSON file
+    participants_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'participants.json')
+    if os.path.exists(participants_file_path):
+        try:
+            with open(participants_file_path, 'r') as file:
+                participants_data = json.load(file)
+                print(f"Loaded {len(participants_data)} participants from JSON file")
+                
+                # Track enrollment numbers to avoid duplicates
+                seen_enrollment_numbers = set()
+                created_count = 0
+                skipped_count = 0
+                
+                # Create user accounts for each participant
+                for participant in participants_data:
+                    enrollment_no = participant['enrollment_no']
+                    
+                    # Skip if this enrollment number already exists
+                    if enrollment_no in seen_enrollment_numbers:
+                        print(f"Warning: Skipping duplicate enrollment number: {enrollment_no} ({participant['username']})")
+                        skipped_count += 1
+                        continue
+                    
+                    # Add to tracking set
+                    seen_enrollment_numbers.add(enrollment_no)
+                    
+                    # Check if user with this enrollment number already exists in DB
+                    existing_user = User.query.filter_by(enrollment_no=enrollment_no).first()
+                    if existing_user:
+                        print(f"Warning: User with enrollment number {enrollment_no} already exists in database")
+                        skipped_count += 1
+                        continue
+                    
+                    # Create new user
+                    hashed_password = generate_password_hash(participant['password'])
+                    user = User(
+                        enrollment_no=enrollment_no,
+                        username=participant['username'],
+                        password=hashed_password,
+                        is_admin=False,
+                        current_round=1,
+                        total_score=0,
+                        qualified_for_round3=False  # New users are not qualified for Round 3 by default
+                    )
+                    db.session.add(user)
+                    created_count += 1
+                
+                print(f"Created {created_count} participant accounts from JSON file (Skipped {skipped_count} duplicates)")
+        except Exception as e:
+            print(f"Error loading participants from JSON: {str(e)}")
+    else:
+        print(f"Participants file not found at {participants_file_path}")
+    
+    # Load predefined test participants if available
+    predefined_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'predefined_participants.json')
+    if os.path.exists(predefined_file_path):
+        try:
+            with open(predefined_file_path, 'r') as file:
+                predefined_data = json.load(file)
+                print(f"Loaded {len(predefined_data)} predefined test participants")
+                
+                # Track enrollment numbers to avoid duplicates
+                predefined_count = 0
+                predefined_skipped = 0
+                
+                # Create user accounts for each predefined participant
+                for participant in predefined_data:
+                    enrollment_no = participant['enrollment_no']
+                    
+                    # Check if user with this enrollment number already exists in DB
+                    existing_user = User.query.filter_by(enrollment_no=enrollment_no).first()
+                    if existing_user:
+                        predefined_skipped += 1
+                        continue
+                    
+                    # Create new user
+                    hashed_password = generate_password_hash(participant['password'])
+                    user = User(
+                        enrollment_no=enrollment_no,
+                        username=participant['username'],
+                        password=hashed_password,
+                        is_admin=False,
+                        current_round=1,
+                        total_score=0,
+                        qualified_for_round3=False
+                    )
+                    db.session.add(user)
+                    predefined_count += 1
+                
+                if predefined_count > 0:
+                    print(f"Created {predefined_count} predefined test participant accounts (Skipped {predefined_skipped})")
+        except Exception as e:
+            print(f"Error loading predefined test participants: {str(e)}")
     
     db.session.commit()
-    print("Admin user and predefined participants created successfully!")
+    print("Admin user and participant accounts created successfully!")
 
 # Helper function to check if a round is currently enabled
 def is_round_enabled(round_number):
@@ -260,7 +371,6 @@ def update_round_access():
         'enabled_at': round_access.enabled_at.isoformat() if round_access.enabled_at else None
     })
 
-# Modify quiz round endpoint to check round access
 @app.route('/api/quiz/result', methods=['POST'])
 def save_quiz_result():
     data = request.get_json()
@@ -296,50 +406,71 @@ def save_quiz_result():
     
     # Create new quiz result
     try:
+        # Get raw score and penalty (if any)
+        raw_score = data['score']
+        penalty_points = data.get('penalty_points', 0)
+        total_score = raw_score - penalty_points
+        completion_time = datetime.utcnow()
+        
+        # Create QuizResult for backward compatibility
         new_result = QuizResult(
             user_id=data['user_id'],
             round_number=data['round_number'],
             language=data.get('language'),  # This can be None for Round 2
-            score=data['score'],
+            score=total_score,  # Use total score after penalty
             total_questions=data['total_questions'],
-            completed_at=datetime.utcnow()
+            completed_at=completion_time
         )
         
-        # Add the result to the database
+        # Create new UserScore record with detailed scoring
+        new_score = UserScore(
+            user_id=data['user_id'],
+            round_number=data['round_number'],
+            raw_score=raw_score,
+            penalty_points=penalty_points,
+            total_score=total_score,
+            completion_time=completion_time
+        )
+        
+        # Add the records to the database
         db.session.add(new_result)
+        db.session.add(new_score)
         
         # Update user's total score
-        user.total_score += data['score']
+        user.total_score += total_score
         
-        # Check if user passed the round (50% or more)
-        passed = data['score'] >= (data['total_questions'] / 2)
-        print(f"User {user.username} scored {data['score']}/{data['total_questions']} in Round {data['round_number']} - {'PASSED' if passed else 'FAILED'}")
+        # Check if user passed the round (30% or more)
+        passed_threshold = data['total_questions'] * 0.3  # 30% threshold
+        passed = total_score >= passed_threshold
+        print(f"User {user.username} scored {total_score}/{data['total_questions']} in Round {data['round_number']} - {'PASSED' if passed else 'FAILED'}")
         
-        # Handle Round 2 completion and qualification for Round 3
-        if data['round_number'] == 2:
-            # Record when the user completed Round 2
-            user.round2_completed_at = datetime.utcnow()
+        if passed:
+            # Update current round if user passed and it's their current round
+            if user.current_round == data['round_number']:
+                user.current_round = data['round_number'] + 1
+                print(f"User {user.username} unlocked Round {user.current_round}!")
             
-            if passed:
-                # Check if this user is among the first 10 to pass Round 2
-                # Count how many users have already qualified for Round 3
-                qualified_count = User.query.filter_by(qualified_for_round3=True).count()
-                
-                if qualified_count < 10:
-                    # This user qualifies for Round 3
-                    user.qualified_for_round3 = True
-                    user.current_round = 3
-                    print(f"User {user.username} qualified for Round 3! (Position {qualified_count + 1}/10)")
-                else:
-                    print(f"User {user.username} passed Round 2 but did not qualify for Round 3 (all 10 spots filled)")
-        
-        # Update user's current round if they passed and it's their current round for Round 1
-        elif data['round_number'] == 1 and passed and user.current_round <= 1:
-            user.current_round = 2
-            print(f"User {user.username} unlocked Round 2!")
+            # Handle Round 2 completion timestamp
+            if data['round_number'] == 2:
+                user.round2_completed_at = completion_time
         
         # Commit changes to the database
         db.session.commit()
+        
+        # Check if we should update qualification status
+        # Get count of submissions for this round
+        round_submissions_count = QuizResult.query.filter_by(round_number=data['round_number']).count()
+        # Get count of non-admin users
+        non_admin_users_count = User.query.filter_by(is_admin=False).count()
+        
+        # If all or most users have completed this round, update qualifications
+        # Using 90% threshold to account for potential dropouts
+        if round_submissions_count >= non_admin_users_count * 0.9:
+            # For Round 2, update Round 3 qualification
+            if data['round_number'] == 2:
+                _update_round_qualifications(3)
+            # For Round 1, update Round 2 qualification (already handled by default)
+            # This could be expanded for future rounds
         
         # Update the user in localStorage
         updated_user = {
@@ -361,7 +492,9 @@ def save_quiz_result():
                 'user_id': new_result.user_id,
                 'round_number': new_result.round_number,
                 'language': new_result.language,
-                'score': new_result.score,
+                'raw_score': raw_score,
+                'penalty_points': penalty_points,
+                'total_score': total_score,
                 'total_questions': new_result.total_questions,
                 'completed_at': new_result.completed_at.isoformat(),
                 'passed': passed
@@ -375,34 +508,110 @@ def save_quiz_result():
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Failed to save quiz result: {str(e)}'}), 500
 
+# Helper function to update qualifications for next round
+def _update_round_qualifications(target_round):
+    try:
+        # Get all scores for the previous round
+        previous_round = target_round - 1
+        previous_round_scores = UserScore.query.filter_by(round_number=previous_round).all()
+        
+        # Group scores by user
+        user_scores = {}
+        for score in previous_round_scores:
+            user_scores[score.user_id] = score
+            
+        qualified_users = []
+        
+        # Get the corresponding quiz results to check total questions
+        for user_id, score in user_scores.items():
+            user = User.query.get(user_id)
+            if not user or user.is_admin:
+                continue
+                
+            # Get total questions from QuizResult
+            result = QuizResult.query.filter_by(user_id=user_id, round_number=previous_round).first()
+            if not result:
+                continue
+                
+            # Calculate percentage
+            percentage = (score.total_score / result.total_questions) * 100
+            
+            # Check if user scored above 30%
+            if percentage >= 30:
+                qualified_users.append({
+                    'user_id': user_id,
+                    'score': score.total_score,
+                    'percentage': percentage,
+                    'completion_time': score.completion_time
+                })
+        
+        # Sort by score (descending) and completion time (ascending)
+        qualified_users.sort(key=lambda x: (-x['score'], x['completion_time']))
+        
+        # Add ranking to all users
+        for i, user_data in enumerate(qualified_users):
+            user_data['rank'] = i + 1
+        
+        # Take the top 10 participants
+        top_participants = qualified_users[:10]
+        
+        # Update qualification status
+        if target_round == 3:
+            # For Round 3, update the qualified_for_round3 flag
+            for participant in top_participants:
+                user = User.query.get(participant['user_id'])
+                if user:
+                    user.qualified_for_round3 = True
+            
+            # Reset qualification for users not in the top 10
+            for user in User.query.filter_by(is_admin=False).all():
+                if not any(p['user_id'] == user.id for p in top_participants):
+                    user.qualified_for_round3 = False
+        else:
+            # For other rounds, handle accordingly (future extension)
+            pass
+            
+        db.session.commit()
+        print(f"Updated qualifications for Round {target_round}")
+        print(f"Top 10 participants: {[p['user_id'] for p in top_participants]}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating qualifications: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return False
+
 # Update round3 submission endpoint to check round access
 @app.route('/api/round3/submit-dsa', methods=['POST'])
 def submit_dsa_solution():
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    user_id = data.get('user_id')
-    challenge_id = data.get('challenge_id')
-    challenge_name = data.get('challenge_name')
-    code = data.get('code')
-    language = data.get('language')
-    auto_submit = data.get('auto_submit', False)  # Flag for auto-submissions
-    
-    # Validate required fields
-    if not all([user_id, challenge_id, challenge_name, code, language]):
-        return jsonify({'error': 'Missing required fields'}), 400
-    
-    # Check if round 3 is enabled (bypass for auto-submissions)
-    if not auto_submit:
-        round_access = RoundAccess.query.filter_by(round_number=3).first()
-        if not round_access or not round_access.is_enabled:
-            user = User.query.get(user_id)
-            if not user or not user.is_admin:
-                return jsonify({'error': 'Round 3 is not currently enabled', 'round_not_enabled': True}), 403
     
     try:
-        # Check if the user has already submitted this challenge
+        # Extract data from the request
+        user_id = data.get('user_id')
+        challenge_id = data.get('challenge_id')
+        challenge_name = data.get('challenge_name')
+        code = data.get('code')
+        language = data.get('language', 'unknown')
+        auto_submit = data.get('auto_submit', False)
+        
+        # Check if Round 3 is enabled
+        round3_enabled = is_round_enabled(3)
+        if not round3_enabled:
+            # Check if the user is an admin (they can submit even if round is disabled)
+            user = User.query.get(user_id)
+            if not user or not user.is_admin:
+                return jsonify({
+                    'error': 'Round 3 is currently not enabled.',
+                    'round_not_enabled': True
+                }), 403
+        
+        # Validate the input data
+        if not user_id or not challenge_id or not challenge_name or not code:
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Check if this user has already submitted this challenge
         existing_submission = Round3Submission.query.filter_by(
             user_id=user_id,
             challenge_id=challenge_id,
@@ -410,49 +619,12 @@ def submit_dsa_solution():
         ).first()
         
         if existing_submission:
-            # Update existing submission if auto-submitted
-            if auto_submit:
-                existing_submission.code = code
-                existing_submission.language = language
-                existing_submission.submitted_at = datetime.utcnow()
-                db.session.commit()
-                
-                # For auto-submissions, we assign a score based on the code length/complexity
-                # This is a simple scoring mechanism - can be enhanced with proper code evaluation
-                if auto_submit:
-                    code_length = len(code.strip())
-                    score = min(10, max(1, code_length // 100))  # Simple scoring based on code length
-                    existing_submission.score = score
-                    existing_submission.scored = True
-                    db.session.commit()
-                    
-                    # Update user record and check qualification
-                    user = User.query.get(user_id)
-                    if user:
-                        user.total_score += score
-                        qualified_for_next = user.total_score >= 20  # Example threshold
-                        db.session.commit()
-                        
-                        return jsonify({
-                            'success': True,
-                            'message': 'Solution updated successfully due to round revocation',
-                            'submission_id': existing_submission.id,
-                            'score': score,
-                            'qualified_for_next': qualified_for_next
-                        })
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Solution updated successfully',
-                    'submission_id': existing_submission.id
-                })
-            else:
-                return jsonify({
-                    'error': 'You have already submitted a solution for this challenge',
-                    'submission_id': existing_submission.id
-                }), 400
+            return jsonify({
+                'success': False,
+                'message': 'You have already submitted this challenge.'
+            }), 400
         
-        # Create new submission
+        # Create a new submission record
         submission = Round3Submission(
             user_id=user_id,
             challenge_id=challenge_id,
@@ -460,89 +632,63 @@ def submit_dsa_solution():
             challenge_name=challenge_name,
             code=code,
             language=language,
-            submitted_at=datetime.utcnow()
+            submitted_at=datetime.utcnow(),
+            scored=False  # Will be marked as scored when an admin reviews it
         )
-        
-        # For auto-submissions, add scoring immediately
-        if auto_submit:
-            code_length = len(code.strip())
-            score = min(10, max(1, code_length // 100))  # Simple scoring based on code length
-            submission.score = score
-            submission.scored = True
         
         db.session.add(submission)
         db.session.commit()
         
-        # For auto-submissions, update user record and check qualification
-        if auto_submit:
-            user = User.query.get(user_id)
-            if user:
-                user.total_score += score
-                qualified_for_next = user.total_score >= 20  # Example threshold
-                db.session.commit()
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Solution submitted successfully with auto-scoring',
-                    'submission_id': submission.id,
-                    'score': score,
-                    'qualified_for_next': qualified_for_next
-                })
-        
-        return jsonify({
+        # For development/testing purposes only: auto-score if specified
+        # In production, submissions should be manually reviewed by admins
+        response_data = {
             'success': True,
-            'message': 'Solution submitted successfully',
-            'submission_id': submission.id
-        })
+            'message': 'Your solution has been submitted successfully!'
+        }
+        
+        # Only return minimal information to participants
+        # Don't include any score information
+        return jsonify(response_data), 201
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Error submitting solution: {str(e)}'}), 500
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error submitting DSA solution: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to submit solution: {str(e)}'}), 500
 
 # Update Web submission endpoint to check round access
 @app.route('/api/round3/submit-web', methods=['POST'])
 def submit_web_solution():
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    user_id = data.get('user_id')
-    challenge_id = data.get('challenge_id')
-    challenge_name = data.get('challenge_name')
-    html_code = data.get('html_code')
-    css_code = data.get('css_code')
-    js_code = data.get('js_code')
-    is_auto_submission = data.get('is_auto_submission', False)  # Flag for auto-submissions
-    
-    # Validate required fields
-    if not all([user_id, challenge_id, challenge_name, html_code, css_code]):
-        return jsonify({'error': 'Missing required fields'}), 400
-    
-    # Check if round 3 is enabled (bypass for auto-submissions)
-    if not is_auto_submission:
-        round_access = RoundAccess.query.filter_by(round_number=3).first()
-        if not round_access or not round_access.is_enabled:
-            user = User.query.get(user_id)
-            if not user or not user.is_admin:
-                return jsonify({'error': 'Round 3 is not currently enabled', 'round_not_enabled': True}), 403
     
     try:
-        # Combine the code for storage
-        combined_code = f"""
-        <!-- HTML -->
-        {html_code}
+        # Extract data from the request
+        user_id = data.get('user_id')
+        challenge_id = data.get('challenge_id')
+        challenge_name = data.get('challenge_name')
+        html_code = data.get('html_code')
+        css_code = data.get('css_code')
+        js_code = data.get('js_code')
+        is_auto_submission = data.get('is_auto_submission', False)
         
-        <!-- CSS -->
-        <style>
-        {css_code}
-        </style>
+        # Check if Round 3 is enabled
+        round3_enabled = is_round_enabled(3)
+        if not round3_enabled:
+            # Check if the user is an admin (they can submit even if round is disabled)
+            user = User.query.get(user_id)
+            if not user or not user.is_admin:
+                return jsonify({
+                    'error': 'Round 3 is currently not enabled.',
+                    'round_not_enabled': True
+                }), 403
         
-        <!-- JavaScript -->
-        <script>
-        {js_code}
-        </script>
-        """
+        # Validate the input data
+        if not user_id or not challenge_id or not challenge_name or not html_code:
+            return jsonify({'error': 'Missing required fields'}), 400
         
-        # Check if the user has already submitted this challenge
+        # Check if this user has already submitted this challenge
         existing_submission = Round3Submission.query.filter_by(
             user_id=user_id,
             challenge_id=challenge_id,
@@ -550,89 +696,53 @@ def submit_web_solution():
         ).first()
         
         if existing_submission:
-            # Update existing submission if auto-submitted
-            if is_auto_submission:
-                existing_submission.code = combined_code
-                existing_submission.submitted_at = datetime.utcnow()
-                db.session.commit()
-                
-                # For auto-submissions, assign a score based on code complexity
-                code_length = len(html_code) + len(css_code) + len(js_code)
-                score = min(10, max(1, code_length // 200))  # Simple scoring
-                existing_submission.score = score
-                existing_submission.scored = True
-                db.session.commit()
-                
-                # Update user qualification
-                user = User.query.get(user_id)
-                if user:
-                    user.total_score += score
-                    qualified_for_next = user.total_score >= 20  # Example threshold
-                    db.session.commit()
-                    
-                    return jsonify({
-                        'success': True,
-                        'message': 'Solution updated successfully due to round revocation',
-                        'submission_id': existing_submission.id,
-                        'score': score,
-                        'qualified_for_next': qualified_for_next
-                    })
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Solution updated successfully',
-                    'submission_id': existing_submission.id
-                })
-            else:
-                return jsonify({
-                    'error': 'You have already submitted a solution for this challenge',
-                    'submission_id': existing_submission.id
-                }), 400
+            return jsonify({
+                'success': False,
+                'message': 'You have already submitted this challenge.'
+            }), 400
         
-        # Create new submission
+        # Combine all the code into a single field for storage
+        combined_code = f"""
+HTML:
+{html_code}
+
+CSS:
+{css_code}
+
+JavaScript:
+{js_code}
+"""
+        
+        # Create a new submission record
         submission = Round3Submission(
             user_id=user_id,
             challenge_id=challenge_id,
             track_type='web',
             challenge_name=challenge_name,
             code=combined_code,
-            submitted_at=datetime.utcnow()
+            submitted_at=datetime.utcnow(),
+            scored=False  # Will be marked as scored when an admin reviews it
         )
-        
-        # For auto-submissions, add scoring immediately
-        if is_auto_submission:
-            code_length = len(html_code) + len(css_code) + len(js_code)
-            score = min(10, max(1, code_length // 200))  # Simple scoring
-            submission.score = score
-            submission.scored = True
         
         db.session.add(submission)
         db.session.commit()
         
-        # For auto-submissions, update user qualification
-        if is_auto_submission:
-            user = User.query.get(user_id)
-            if user:
-                user.total_score += score
-                qualified_for_next = user.total_score >= 20  # Example threshold
-                db.session.commit()
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Solution submitted successfully with auto-scoring',
-                    'submission_id': submission.id,
-                    'score': score,
-                    'qualified_for_next': qualified_for_next
-                })
-        
-        return jsonify({
+        response_data = {
             'success': True,
-            'message': 'Solution submitted successfully',
-            'submission_id': submission.id
-        })
+            'message': 'Your solution has been submitted successfully!'
+        }
+        
+        # Only return minimal information to participants
+        # Don't include any score information
+        return jsonify(response_data), 201
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Error submitting solution: {str(e)}'}), 500
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error submitting web solution: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to submit solution: {str(e)}'}), 500
 
 @app.route('/api/user/<int:user_id>/results', methods=['GET'])
 def get_user_results(user_id):
@@ -706,7 +816,7 @@ def add_question(language):
     data = request.get_json()
     
     # Validate required fields
-    required_fields = ['id', 'question', 'options', 'correctAnswer']
+    required_fields = ['question', 'options', 'correctAnswer']
     for field in required_fields:
         if field not in data:
             return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -729,14 +839,23 @@ def add_question(language):
             with open(file_path, 'r') as file:
                 questions = json.load(file)
         
-        # Check if question with the same ID already exists
-        for i, q in enumerate(questions):
-            if q['id'] == data['id']:
-                return jsonify({'error': f'Question with ID {data["id"]} already exists'}), 400
+        # Auto-generate question ID if not provided
+        question_id = data.get('id')
+        if not question_id:
+            question_id = 1
+            if questions:
+                # Find the max ID and increment by 1
+                question_id = max(q.get('id', 0) for q in questions) + 1
+        else:
+            question_id = int(question_id)
+            # Check if question with the same ID already exists
+            for q in questions:
+                if q['id'] == question_id:
+                    return jsonify({'error': f'Question with ID {question_id} already exists'}), 400
         
         # Add the new question to the list
         questions.append({
-            'id': data['id'],
+            'id': question_id,
             'question': data['question'],
             'options': data['options'],
             'correctAnswer': data['correctAnswer']
@@ -751,7 +870,12 @@ def add_question(language):
         
         return jsonify({
             'message': 'Question added successfully',
-            'question': data
+            'question': {
+                'id': question_id,
+                'question': data['question'],
+                'options': data['options'],
+                'correctAnswer': data['correctAnswer']
+            }
         }), 201
         
     except Exception as e:
@@ -768,11 +892,15 @@ def add_round2_question():
     data = request.get_json()
     
     # Validate required fields
-    required_fields = ['id', 'question', 'questionImage', 'options', 'optionImages', 'correctAnswer']
+    required_fields = ['question', 'questionImage', 'options', 'optionImages', 'correctAnswer', 'language']
     for field in required_fields:
         if field not in data:
             return jsonify({'error': f'Missing required field: {field}'}), 400
     
+    # Validate language
+    if data['language'] not in ['python', 'c']:
+        return jsonify({'error': 'Invalid language. Must be "python" or "c"'}), 400
+            
     # Validate options (should be an array of 4 items)
     if not isinstance(data['options'], list) or len(data['options']) != 4:
         return jsonify({'error': 'Options must be an array of 4 items'}), 400
@@ -786,6 +914,31 @@ def add_round2_question():
         return jsonify({'error': 'Correct answer must be an integer between 0 and 3'}), 400
     
     try:
+        # Auto-generate question ID if not provided
+        question_id = data.get('id')
+        language = data['language']
+        
+        # Store files directly in the backend directory with language prefix
+        file_path = os.path.join(os.path.dirname(__file__), f'round2_{language}_questions.json')
+        
+        # Check if file exists and read its contents
+        questions = []
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as file:
+                questions = json.load(file)
+        
+        # Auto-generate ID if not provided
+        if not question_id:
+            question_id = 1
+            if questions:
+                # Find the max ID and increment by 1
+                question_id = max(q.get('id', 0) for q in questions) + 1
+        else:
+            # Check if question with the same ID already exists
+            for q in questions:
+                if q['id'] == question_id:
+                    return jsonify({'error': f'Question with ID {question_id} already exists'}), 400
+        
         # Save question image if provided
         question_image_path = None
         if data['questionImage'] and data['questionImage'].startswith('data:image'):
@@ -793,8 +946,8 @@ def add_round2_question():
             image_data = data['questionImage'].split(',')[1]
             image_binary = base64.b64decode(image_data)
             
-            # Save image to file with question ID in filename
-            question_image_filename = f"question_{data['id']}.png"
+            # Save image to file with question ID and language in filename
+            question_image_filename = f"question_{language}_{question_id}.png"
             question_image_path = os.path.join(QUESTION_IMAGES_FOLDER, question_image_filename)
             
             with open(question_image_path, 'wb') as f:
@@ -812,8 +965,8 @@ def add_round2_question():
                 image_data = option_image.split(',')[1]
                 image_binary = base64.b64decode(image_data)
                 
-                # Save image to file with question ID and option index in filename
-                option_image_filename = f"question_{data['id']}_option_{idx}.png"
+                # Save image to file with question ID, language and option index in filename
+                option_image_filename = f"question_{language}_{question_id}_option_{idx}.png"
                 option_image_path = os.path.join(OPTION_IMAGES_FOLDER, option_image_filename)
                 
                 with open(option_image_path, 'wb') as f:
@@ -824,24 +977,11 @@ def add_round2_question():
             
             option_image_paths.append(option_image_path)
         
-        # Store files directly in the backend directory
-        file_path = os.path.join(os.path.dirname(__file__), 'round2_questions.json')
-        
-        # Check if file exists and read its contents
-        questions = []
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as file:
-                questions = json.load(file)
-        
-        # Check if question with the same ID already exists
-        for i, q in enumerate(questions):
-            if q['id'] == data['id']:
-                return jsonify({'error': f'Question with ID {data["id"]} already exists'}), 400
-        
         # Add the new question to the list
         questions.append({
-            'id': data['id'],
+            'id': question_id,
             'question': data['question'],
+            'language': language,
             'questionImage': question_image_path,
             'options': data['options'],
             'optionImages': option_image_paths,
@@ -858,8 +998,9 @@ def add_round2_question():
         return jsonify({
             'message': 'Round 2 question added successfully',
             'question': {
-                'id': data['id'],
+                'id': question_id,
                 'question': data['question'],
+                'language': language,
                 'questionImage': question_image_path,
                 'options': data['options'],
                 'optionImages': option_image_paths,
@@ -877,13 +1018,43 @@ def add_round2_question():
 @app.route('/api/admin/questions/round2', methods=['GET'])
 def get_round2_questions():
     try:
-        file_path = os.path.join(os.path.dirname(__file__), 'round2_questions.json')
+        # Get language parameter (optional)
+        language = request.args.get('language')
         
-        if not os.path.exists(file_path):
-            return jsonify([]), 200
+        questions = []
         
-        with open(file_path, 'r') as file:
-            questions = json.load(file)
+        if language and language in ['python', 'c']:
+            # If language is specified, only get questions for that language
+            file_path = os.path.join(os.path.dirname(__file__), f'round2_{language}_questions.json')
+            
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as file:
+                    questions = json.load(file)
+        else:
+            # If no language specified or invalid language, try to load both languages
+            python_path = os.path.join(os.path.dirname(__file__), 'round2_python_questions.json')
+            c_path = os.path.join(os.path.dirname(__file__), 'round2_c_questions.json')
+            
+            # Legacy path for backward compatibility
+            legacy_path = os.path.join(os.path.dirname(__file__), 'round2_questions.json')
+            
+            if os.path.exists(python_path):
+                with open(python_path, 'r') as file:
+                    questions.extend(json.load(file))
+            
+            if os.path.exists(c_path):
+                with open(c_path, 'r') as file:
+                    questions.extend(json.load(file))
+                    
+            # Check legacy path for backward compatibility
+            if os.path.exists(legacy_path):
+                with open(legacy_path, 'r') as file:
+                    legacy_questions = json.load(file)
+                    # Add language field if missing
+                    for q in legacy_questions:
+                        if 'language' not in q:
+                            q['language'] = 'python'  # Default to python for legacy questions
+                    questions.extend(legacy_questions)
         
         # Shuffle questions for each participant
         random.shuffle(questions)
@@ -895,7 +1066,6 @@ def get_round2_questions():
         error_traceback = traceback.format_exc()
         print(f"Error fetching Round 2 questions: {str(e)}")
         print(f"Traceback: {error_traceback}")
-        print(f"File path attempted: {file_path}")
         return jsonify({'error': f'Failed to fetch Round 2 questions: {str(e)}'}), 500
 
 @app.route('/api/admin/questions/round3', methods=['POST'])
@@ -1099,51 +1269,77 @@ def get_leaderboard():
         # Get all users who are not admins
         users = User.query.filter_by(is_admin=False).all()
         
+        # Filter round for the leaderboard (optional parameter)
+        round_filter = request.args.get('round')
+        if round_filter:
+            try:
+                round_filter = int(round_filter)
+            except (ValueError, TypeError):
+                round_filter = None
+        
         leaderboard_data = []
         for user in users:
-            # Get all quiz results for this user
-            if is_admin:
-                # For admins, include all rounds
-                results = QuizResult.query.filter_by(user_id=user.id).all()
-            else:
-                # For non-admins, exclude Round 3 results
-                results = QuizResult.query.filter(
-                    QuizResult.user_id == user.id,
-                    QuizResult.round_number != 3
-                ).all()
+            # Get scores for this user
+            query = UserScore.query.filter_by(user_id=user.id)
             
-            # Calculate visible score (excluding Round 3 for non-admins)
-            visible_score = sum(result.score for result in results)
-            visible_questions = sum(result.total_questions for result in results)
+            # Apply round filter if specified
+            if round_filter:
+                query = query.filter_by(round_number=round_filter)
+            elif not is_admin:
+                # For non-admins, exclude Round 3 scores
+                query = query.filter(UserScore.round_number != 3)
             
-            # Only include users who have attempted at least one quiz
-            if results:
+            scores = query.all()
+            
+            # Only include users who have at least one score
+            if scores:
+                # Calculate total score across all rounds
+                total_score = sum(score.total_score for score in scores)
+                total_raw_score = sum(score.raw_score for score in scores)
+                total_penalty = sum(score.penalty_points for score in scores)
+                
+                # Calculate total questions (from QuizResult for compatibility)
+                results = QuizResult.query.filter_by(user_id=user.id)
+                if round_filter:
+                    results = results.filter_by(round_number=round_filter)
+                elif not is_admin:
+                    results = results.filter(QuizResult.round_number != 3)
+                
+                total_questions = sum(result.total_questions for result in results.all())
+                
+                # Get the latest completion time (for tie-breaking)
+                latest_completion = max(score.completion_time for score in scores)
+                
+                # Calculate percentage
+                percentage = round((total_score / total_questions * 100), 2) if total_questions > 0 else 0
+                
+                # Build user data for leaderboard
                 user_data = {
                     'user_id': user.id,
                     'username': user.username,
                     'enrollment_no': user.enrollment_no,
-                    'visible_score': visible_score,
-                    'total_questions': visible_questions,
-                    'percentage': round((visible_score / visible_questions * 100), 2) if visible_questions > 0 else 0,
+                    'total_score': total_score,
+                    'raw_score': total_raw_score,
+                    'penalty_points': total_penalty,
+                    'total_questions': total_questions,
+                    'percentage': percentage,
                     'current_round': user.current_round,
+                    'qualified_for_round3': user.qualified_for_round3,
+                    'latest_completion': latest_completion
                 }
-                
-                # For admins, include the actual total score (including Round 3)
-                if is_admin:
-                    user_data['total_score'] = user.total_score
-                    user_data['qualified_for_round3'] = user.qualified_for_round3
                 
                 leaderboard_data.append(user_data)
         
-        # Sort by total_score for admins, visible_score for participants
-        if is_admin:
-            leaderboard_data.sort(key=lambda x: x['total_score'], reverse=True)
-        else:
-            leaderboard_data.sort(key=lambda x: x['visible_score'], reverse=True)
+        # Sort by:
+        # 1. Total score (descending)
+        # 2. Completion time (ascending) - earlier submissions rank higher
+        leaderboard_data.sort(key=lambda x: (-x['total_score'], x['latest_completion']))
         
         # Add ranking
         for i, entry in enumerate(leaderboard_data):
             entry['rank'] = i + 1
+            # Convert datetime to string for JSON serialization
+            entry['latest_completion'] = entry['latest_completion'].isoformat()
         
         return jsonify({
             'leaderboard': leaderboard_data,
@@ -1418,5 +1614,138 @@ def check_round3_challenge():
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to check challenge completion: {str(e)}'}), 500
 
+# Add a new endpoint to delete questions
+@app.route('/api/admin/questions/delete', methods=['POST'])
+def delete_question():
+    data = request.get_json()
+    
+    # Validate required fields
+    if not data or 'round' not in data or 'question_id' not in data:
+        return jsonify({'error': 'Missing required fields: round, question_id'}), 400
+    
+    round_number = data['round']
+    question_id = int(data['question_id'])
+    language = data.get('language')
+    
+    try:
+        if round_number == 1:
+            if not language or language not in ['python', 'c']:
+                return jsonify({'error': 'Language is required for Round 1 questions'}), 400
+                
+            file_path = os.path.join(os.path.dirname(__file__), f'{language}_questions.json')
+        elif round_number == 2:
+            if not language or language not in ['python', 'c']:
+                return jsonify({'error': 'Language is required for Round 2 questions'}), 400
+                
+            file_path = os.path.join(os.path.dirname(__file__), f'round2_{language}_questions.json')
+        elif round_number == 3:
+            file_path = os.path.join(os.path.dirname(__file__), 'round3_questions.json')
+        else:
+            return jsonify({'error': 'Invalid round number'}), 400
+        
+        # Check if file exists
+        if not os.path.exists(file_path):
+            return jsonify({'error': f'No questions found for the specified round and language'}), 404
+            
+        # Read existing questions
+        with open(file_path, 'r') as file:
+            questions = json.load(file)
+        
+        # Find the question to delete
+        question_to_delete = None
+        for i, q in enumerate(questions):
+            if q.get('id') == question_id:
+                question_to_delete = questions.pop(i)
+                break
+        
+        if not question_to_delete:
+            return jsonify({'error': f'Question with ID {question_id} not found'}), 404
+        
+        # Save the updated questions list
+        with open(file_path, 'w') as file:
+            json.dump(questions, file, indent=2)
+            
+        return jsonify({
+            'message': f'Question {question_id} deleted successfully',
+            'deleted_question': question_to_delete
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error deleting question: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to delete question: {str(e)}'}), 500
+
+# Add a new endpoint to create a participant
+@app.route('/api/admin/participants/create', methods=['POST'])
+def create_participant():
+    data = request.get_json()
+    
+    # Validate request is from an admin
+    admin_id = data.get('admin_id')
+    if not admin_id:
+        return jsonify({'error': 'Admin ID is required'}), 400
+    
+    admin = User.query.get(admin_id)
+    if not admin or not admin.is_admin:
+        return jsonify({'error': 'Unauthorized access'}), 403
+    
+    # Validate required fields
+    required_fields = ['enrollment_no', 'username', 'password']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    enrollment_no = data.get('enrollment_no')
+    username = data.get('username')
+    password = data.get('password')
+    
+    # Check if enrollment number already exists
+    existing_user = User.query.filter_by(enrollment_no=enrollment_no).first()
+    if existing_user:
+        return jsonify({'error': f'User with enrollment number {enrollment_no} already exists'}), 400
+    
+    # Check if username already exists
+    existing_username = User.query.filter_by(username=username).first()
+    if existing_username:
+        return jsonify({'error': f'Username {username} is already taken'}), 400
+    
+    try:
+        # Create new participant user
+        hashed_password = generate_password_hash(password)
+        new_user = User(
+            enrollment_no=enrollment_no,
+            username=username,
+            password=hashed_password,
+            is_admin=False,
+            current_round=1,
+            total_score=0,
+            qualified_for_round3=False
+        )
+        
+        db.session.add(new_user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Participant {username} created successfully',
+            'user': {
+                'id': new_user.id,
+                'enrollment_no': new_user.enrollment_no,
+                'username': new_user.username,
+                'is_admin': new_user.is_admin,
+                'current_round': new_user.current_round
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error creating participant: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        return jsonify({'error': f'Failed to create participant: {str(e)}'}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True, host='0.0.0.0') 

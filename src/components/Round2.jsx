@@ -5,7 +5,7 @@ import {
   Radio, RadioGroup, FormControlLabel, FormControl, 
   CircularProgress, Dialog, DialogTitle, DialogContent, 
   DialogContentText, DialogActions,
-  Alert
+  Alert, Card, CardContent, Grid
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
@@ -23,6 +23,8 @@ const Round2 = () => {
   const [dialogMessage, setDialogMessage] = useState('');
   const [isRoundEnabled, setIsRoundEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState('language-select'); // 'language-select', 'quiz', 'intro'
+  const [selectedLanguage, setSelectedLanguage] = useState('');
 
   const totalQuestions = 20;
 
@@ -57,37 +59,38 @@ const Round2 = () => {
     }
   };
 
-  // Start polling for round access status
+  // Enhanced polling - check access status even during language selection
   useEffect(() => {
-    if (!user || isSubmitting) return;
-    
     let intervalId;
     
-    // Initial check
-    checkRoundAccess().then(enabled => {
-      setIsRoundEnabled(enabled);
-      
-      if (!enabled && user && !user.is_admin) {
-        // Round was disabled, auto-submit
-        handleRoundDisabled();
-      }
-    });
-    
-    // Set up polling
-    intervalId = setInterval(async () => {
-      const enabled = await checkRoundAccess();
-      setIsRoundEnabled(enabled);
-      
-      if (!enabled && user && !user.is_admin) {
-        // Round was disabled, auto-submit
-        handleRoundDisabled();
-      }
-    }, 10000); // Check every 10 seconds
+    // Only poll if on language selection screen or during quiz
+    if ((step === 'language-select' || step === 'intro' || step === 'quiz') && user && !user.is_admin) {
+      // Set up polling
+      intervalId = setInterval(async () => {
+        const enabled = await checkRoundAccess();
+        
+        // If access status changed, show visual feedback
+        if (enabled !== isRoundEnabled) {
+          setIsRoundEnabled(enabled);
+          
+          // Show dialog if access was revoked during language selection
+          if (!enabled && (step === 'language-select' || step === 'intro')) {
+            setDialogMessage("Round 2 access has been revoked by the administrator. Please try again later.");
+            setDialogOpen(true);
+          }
+          
+          // If access was revoked during quiz, handle it
+          if (!enabled && step === 'quiz') {
+            handleRoundDisabled();
+          }
+        }
+      }, 5000); // Check every 5 seconds
+    }
     
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [user, isSubmitting]);
+  }, [step, user, isRoundEnabled]);
 
   // Handle round being disabled during participation
   const handleRoundDisabled = () => {
@@ -105,17 +108,17 @@ const Round2 = () => {
     }, 2000);
   };
 
-  // Load round 2 questions
+  // Load round 2 questions based on selected language
   useEffect(() => {
-    if (user) {
+    if (user && step === 'quiz' && selectedLanguage) {
       setLoading(true);
-      axios.get('http://localhost:5000/api/admin/questions/round2')
+      axios.get(`http://localhost:5000/api/admin/questions/round2?language=${selectedLanguage}`)
         .then(response => {
-          console.log("Round 2 questions loaded:", response.data);
+          console.log(`Round 2 ${selectedLanguage} questions loaded:`, response.data);
           setQuestions(response.data);
           setLoading(false);
           setTimeLeft(60);
-          setCurrentQuestionIndex(-1); // Start at introduction screen
+          setCurrentQuestionIndex(0);
           setScore(0);
           setSelectedAnswer(null);
         })
@@ -124,19 +127,19 @@ const Round2 = () => {
           setLoading(false);
           setDialogMessage('Error loading questions. Please try again.');
           setDialogOpen(true);
-          navigate('/participant-dashboard');
+          setStep('language-select');
         });
     }
-  }, [user, navigate]);
+  }, [user, step, selectedLanguage]);
 
   // Timer countdown
   useEffect(() => {
     let timer;
-    if (questions.length > 0 && timeLeft > 0 && isRoundEnabled) {
+    if (step === 'quiz' && questions.length > 0 && timeLeft > 0 && isRoundEnabled) {
       timer = setTimeout(() => {
         setTimeLeft(prevTime => prevTime - 1);
       }, 1000);
-    } else if (questions.length > 0 && timeLeft === 0) {
+    } else if (step === 'quiz' && questions.length > 0 && timeLeft === 0) {
       // Time's up for current question
       handleNextQuestion();
     }
@@ -144,7 +147,13 @@ const Round2 = () => {
     return () => {
       clearTimeout(timer);
     };
-  }, [timeLeft, questions, isRoundEnabled]);
+  }, [timeLeft, questions, step, isRoundEnabled]);
+
+  // Handle language selection and start quiz introduction
+  const handleLanguageSelect = (language) => {
+    setSelectedLanguage(language);
+    setStep('intro');
+  };
 
   // Handle answer selection
   const handleAnswerSelect = (index) => {
@@ -186,6 +195,7 @@ const Round2 = () => {
       console.log("Submitting Round 2 results:", {
         user_id: user.id,
         round_number: 2,
+        language: selectedLanguage,
         score: finalScore,
         total_questions: Math.min(totalQuestions, questions.length)
       });
@@ -193,8 +203,7 @@ const Round2 = () => {
       const response = await axios.post('http://localhost:5000/api/quiz/result', {
         user_id: user.id,
         round_number: 2,
-        // Round 2 doesn't have a language field, send empty string instead of null
-        language: '',
+        language: selectedLanguage,
         score: finalScore,
         total_questions: Math.min(totalQuestions, questions.length)
       });
@@ -236,10 +245,9 @@ const Round2 = () => {
     }
   };
 
-  // Start the quiz
+  // Start the quiz after intro
   const startQuiz = () => {
-    setCurrentQuestionIndex(0);
-    setTimeLeft(60);
+    setStep('quiz');
   };
 
   // Show special UI when round is disabled
@@ -262,7 +270,7 @@ const Round2 = () => {
     );
   }
 
-  if (loading || !user) {
+  if (loading && step === 'quiz') {
     return (
       <Box sx={{ 
         width: '100%',
@@ -283,39 +291,164 @@ const Round2 = () => {
       </Box>
     );
   }
+  
+  // Language selection screen
+  if (step === 'language-select') {
+    return (
+      <Box sx={{ 
+        width: '100%',
+        minHeight: '100vh',
+        backgroundColor: 'background.default',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <Navbar isAdmin={false} />
+        <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 6,
+              backgroundColor: 'background.paper',
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'primary.main',
+              mx: 'auto',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1
+            }}
+          >
+            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+              <Typography variant="h4" sx={{ color: 'primary.main', mb: 4, fontWeight: 'bold' }}>
+                Round 2: Select Programming Language
+              </Typography>
+              
+              {!isRoundEnabled && user?.is_admin && (
+                <Alert severity="warning" sx={{ mb: 3, width: '100%' }}>
+                  Round 2 is currently disabled for participants. As an admin, you can still proceed.
+                </Alert>
+              )}
+              
+              {isRoundEnabled && (
+                <Alert severity="success" sx={{ mb: 3, width: '100%' }}>
+                  Round 2 is enabled and ready to start!
+                </Alert>
+              )}
+              
+              <Typography variant="body1" sx={{ mb: 4, textAlign: 'center' }}>
+                Please select the programming language you would like to be tested on:
+              </Typography>
+              
+              <Grid container spacing={3} justifyContent="center">
+                <Grid item xs={12} md={6}>
+                  <Card 
+                    sx={{ 
+                      cursor: 'pointer',
+                      height: '100%',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-5px)',
+                        boxShadow: 6
+                      }
+                    }}
+                    onClick={() => handleLanguageSelect('python')}
+                  >
+                    <CardContent sx={{ 
+                      textAlign: 'center', 
+                      p: 4, 
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', mb: 2 }}>
+                        Python
+                      </Typography>
+                      <Typography variant="body1">
+                        Select this if you're more comfortable with Python programming.
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Card 
+                    sx={{ 
+                      cursor: 'pointer',
+                      height: '100%',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-5px)',
+                        boxShadow: 6
+                      }
+                    }}
+                    onClick={() => handleLanguageSelect('c')}
+                  >
+                    <CardContent sx={{ 
+                      textAlign: 'center', 
+                      p: 4, 
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', mb: 2 }}>
+                        C
+                      </Typography>
+                      <Typography variant="body1">
+                        Select this if you're more comfortable with C programming.
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+              
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/participant-dashboard')}
+                sx={{ mt: 4 }}
+              >
+                Return to Dashboard
+              </Button>
+            </Box>
+          </Paper>
+        </Container>
+      </Box>
+    );
+  }
 
-  return (
-    <Box sx={{ 
-      width: '100%',
-      minHeight: '100vh',
-      backgroundColor: 'background.default',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {loading || currentQuestionIndex < 0 ? <Navbar isAdmin={false} /> : null}
-
-      <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Paper 
-          elevation={0}
-          sx={{ 
-            p: 6,
-            textAlign: 'center',
-            backgroundColor: 'background.paper',
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'primary.main',
-            mx: 'auto',
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1
-          }}
-        >
-          {/* Introduction Screen */}
-          {currentQuestionIndex === -1 && questions.length > 0 && (
+  // Intro screen after language selection
+  if (step === 'intro') {
+    return (
+      <Box sx={{ 
+        width: '100%',
+        minHeight: '100vh',
+        backgroundColor: 'background.default',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <Navbar isAdmin={false} />
+        <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 6,
+              backgroundColor: 'background.paper',
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'primary.main',
+              mx: 'auto',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1
+            }}
+          >
             <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
               <Typography variant="h4" sx={{ color: 'primary.main', mb: 3, fontWeight: 'bold' }}>
-                Welcome to Round 2
+                Welcome to Round 2: {selectedLanguage === 'python' ? 'Python' : 'C'} Track
               </Typography>
               
               {!isRoundEnabled && user?.is_admin && (
@@ -345,7 +478,7 @@ const Round2 = () => {
                   Instructions:
                 </Typography>
                 <Typography variant="body1" align="left" sx={{ mb: 2 }}>
-                  • You will be presented with {Math.min(totalQuestions, questions.length)} image-based questions.
+                  • You will be presented with a series of image-based coding questions on {selectedLanguage === 'python' ? 'Python' : 'C'}.
                 </Typography>
                 <Typography variant="body1" align="left" sx={{ mb: 2 }}>
                   • You have 60 seconds to answer each question.
@@ -374,6 +507,14 @@ const Round2 = () => {
                 </Button>
               </Box>
               
+              <Button
+                variant="outlined"
+                onClick={() => setStep('language-select')}
+                sx={{ mt: 3 }}
+              >
+                Change Language
+              </Button>
+              
               {user?.is_admin && (
                 <Button
                   variant="outlined"
@@ -384,10 +525,40 @@ const Round2 = () => {
                 </Button>
               )}
             </Box>
-          )}
-          
+          </Paper>
+        </Container>
+      </Box>
+    );
+  }
+
+  // Quiz Questions UI (the existing quiz UI from the previous code)
+  return (
+    <Box sx={{ 
+      width: '100%',
+      minHeight: '100vh',
+      backgroundColor: 'background.default',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 6,
+            textAlign: 'center',
+            backgroundColor: 'background.paper',
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'primary.main',
+            mx: 'auto',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1
+          }}
+        >
           {/* Quiz Questions */}
-          {currentQuestionIndex >= 0 && questions.length > 0 ? (
+          {questions.length > 0 ? (
             <>
               <Box sx={{ 
                 display: 'flex', 
@@ -497,90 +668,52 @@ const Round2 = () => {
                           sx={{
                             margin: '10px 0',
                             padding: '10px 16px',
-                            borderRadius: 2,
-                            transition: 'all 0.2s',
+                            borderRadius: '8px',
                             '&:hover': {
-                              backgroundColor: 'rgba(255, 107, 0, 0.08)',
-                            },
-                            ...(selectedAnswer === index && {
-                              backgroundColor: 'rgba(255, 107, 0, 0.1)',
-                              border: '1px solid',
-                              borderColor: 'primary.main',
-                            }),
+                              backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                            }
                           }}
                         />
                       ))}
                     </RadioGroup>
                   </FormControl>
 
-                  <Button 
-                    variant="contained"
-                    size="large"
-                    onClick={handleNextQuestion}
-                    sx={{ 
-                      px: 6, 
-                      py: 1.5, 
-                      fontSize: '1.1rem',
-                      mt: 'auto' 
-                    }}
-                  >
-                    {currentQuestionIndex < Math.min(totalQuestions - 1, questions.length - 1) ? 'Next Question' : 'Finish Quiz'}
-                  </Button>
+                  <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'center' }}>
+                    <Button 
+                      variant="contained" 
+                      onClick={handleNextQuestion}
+                      disabled={selectedAnswer === null}
+                      sx={{ 
+                        py: 1.5, 
+                        px: 5, 
+                        fontSize: '1rem',
+                        borderRadius: '8px'
+                      }}
+                    >
+                      {currentQuestionIndex < Math.min(totalQuestions - 1, questions.length - 1) ? 'Next Question' : 'Finish Quiz'}
+                    </Button>
+                  </Box>
                 </>
               )}
             </>
-          ) : questions.length === 0 && currentQuestionIndex === -1 ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-              <Typography variant="h5" sx={{ color: 'primary.main', mb: 3 }}>
-                No questions available for Round 2
-              </Typography>
-              <Button 
-                variant="contained"
-                onClick={() => navigate('/participant-dashboard')}
-                sx={{ px: 4, py: 1.5 }}
-              >
-                Return to Dashboard
-              </Button>
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+              <CircularProgress />
             </Box>
-          ) : null}
+          )}
         </Paper>
       </Container>
 
       {/* Dialog for messages */}
-      <Dialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-        PaperProps={{
-          sx: {
-            backgroundColor: 'background.paper',
-            color: 'text.primary',
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'primary.main',
-          }
-        }}
-      >
-        <DialogTitle id="alert-dialog-title" sx={{ color: 'primary.main' }}>
-          Round 2 Information
-        </DialogTitle>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+        <DialogTitle>Round 2</DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description" sx={{ color: 'text.secondary' }}>
+          <DialogContentText>
             {dialogMessage}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => {
-              setDialogOpen(false);
-              navigate('/participant-dashboard');
-            }} 
-            autoFocus
-            sx={{ color: 'primary.main' }}
-          >
-            OK
-          </Button>
+          <Button onClick={() => setDialogOpen(false)}>OK</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -285,7 +285,7 @@ const Login = () => {
             variants={itemVariants}
           >
             <Typography variant="subtitle2" sx={{ color: 'text.secondary', mb: 2 }}>
-              Available Login Credentials:
+              Login Information:
             </Typography>
             <Box sx={{ 
               display: 'flex',
@@ -302,16 +302,13 @@ const Login = () => {
               textAlign: 'left'
             }}>
               <Typography variant="body2" sx={{ color: 'text.primary' }}>
-                <strong>Admin:</strong> 231260107017 / admin
+                <strong>Admin:</strong> Credentials loaded from admin.json file
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.primary' }}>
-                <strong>Participant 1:</strong> 231260100001 / password123
+                <strong>Participants:</strong> Use your enrollment number and password from participants.json file
               </Typography>
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>
-                <strong>Participant 2:</strong> 231260100002 / password123
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.primary' }}>
-                <strong>Participant 3:</strong> 231260100003 / password123
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic', fontSize: '0.8rem', mt: 1 }}>
+                Note: All credentials are loaded from JSON files at the root of the project
               </Typography>
             </Box>
           </MotionBox>
