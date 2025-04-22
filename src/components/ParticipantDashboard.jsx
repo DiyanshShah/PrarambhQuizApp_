@@ -180,6 +180,7 @@ const ParticipantDashboard = () => {
         };
     }, [user, roundsAccess]);
 
+    // In the startRound function
     const startRound = (roundNumber) => {
         // Check if the user has already attempted this round
         if (attemptedRounds[roundNumber]) {
@@ -193,7 +194,7 @@ const ParticipantDashboard = () => {
         
         // Check if the round is enabled by admin
         const roundEnabled = roundsAccess[`round${roundNumber}`]?.enabled;
-        if (!roundEnabled && (!user || !user.is_admin)) {
+        if (!roundEnabled && !user.is_admin) {
             setSnackbar({
                 open: true,
                 message: `Round ${roundNumber} is not yet enabled by the administrator. Please wait for access.`,
@@ -538,4 +539,4 @@ const ParticipantDashboard = () => {
     );
 };
 
-export default ParticipantDashboard; 
+export default ParticipantDashboard;
