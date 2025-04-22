@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
 import ParticipantDashboard from './components/ParticipantDashboard';
+import AdminDataPage from './components/AdminDataPage'
 import Round1 from './components/Round1';
 import Round2 from './components/Round2';
 import Round3 from './components/Round3';
@@ -184,6 +185,7 @@ function App() {
           <Route path="/leaderboard" element={<Leaderboard isAdmin={true} />} />
           <Route path="/participant-results" element={<Results isAdmin={false} />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="admin-data" element={<AdminDataPage />} />
         </Routes>
       </Router>
     </ThemeProvider>

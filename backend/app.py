@@ -1751,5 +1751,96 @@ def create_participant():
         print(f"Traceback: {error_traceback}")
         return jsonify({'error': f'Failed to create participant: {str(e)}'}), 500
 
+
+@app.route('/api/admin/all-data', methods=['GET'])
+def get_all_data():
+    # Check if user is admin (implement your actual auth check)
+    # if not current_user.is_admin:
+    #    return jsonify({'error': 'Unauthorized access'}), 403
+    
+    try:
+        # Get all users
+        users = User.query.all()
+        
+        # Get all quiz results
+        quiz_results = QuizResult.query.all()
+        
+        # Get all round 3 submissions
+        round3_submissions = Round3Submission.query.all()
+        
+        # Get round access settings
+        round_access = RoundAccess.query.all()
+        
+        # Get user scores
+        user_scores = UserScore.query.all()
+        
+        # Format the data
+        data = {
+            'users': [
+                {
+                    'id': user.id,
+                    'enrollment_no': user.enrollment_no,
+                    'username': user.username,
+                    'is_admin': user.is_admin,
+                    'current_round': user.current_round,
+                    'round3_track': user.round3_track,
+                    'registered_at': user.registered_at.isoformat() if user.registered_at else None,
+                    'total_score': user.total_score,
+                    'round2_completed_at': user.round2_completed_at.isoformat() if user.round2_completed_at else None,
+                    'qualified_for_round3': user.qualified_for_round3
+                } for user in users
+            ],
+            'quiz_results': [
+                {
+                    'id': result.id,
+                    'user_id': result.user_id,
+                    'round_number': result.round_number,
+                    'language': result.language,
+                    'score': result.score,
+                    'total_questions': result.total_questions,
+                    'completed_at': result.completed_at.isoformat() if result.completed_at else None
+                } for result in quiz_results
+            ],
+            'round3_submissions': [
+                {
+                    'id': submission.id,
+                    'user_id': submission.user_id,
+                    'challenge_id': submission.challenge_id,
+                    'track_type': submission.track_type,
+                    'challenge_name': submission.challenge_name,
+                    'code': submission.code,
+                    'language': submission.language,
+                    'submitted_at': submission.submitted_at.isoformat() if submission.submitted_at else None,
+                    'scored': submission.scored,
+                    'score': submission.score
+                } for submission in round3_submissions
+            ],
+            'round_access': [
+                {
+                    'id': access.id,
+                    'round_number': access.round_number,
+                    'is_enabled': access.is_enabled,
+                    'enabled_at': access.enabled_at.isoformat() if access.enabled_at else None
+                } for access in round_access
+            ],
+            'user_scores': [
+                {
+                    'id': score.id,
+                    'user_id': score.user_id,
+                    'round_number': score.round_number,
+                    'raw_score': score.raw_score,
+                    'penalty_points': score.penalty_points,
+                    'total_score': score.total_score,
+                    'completion_time': score.completion_time.isoformat() if score.completion_time else None
+                } for score in user_scores
+            ]
+        }
+        
+        return jsonify(data), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0') 
