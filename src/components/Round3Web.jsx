@@ -24,6 +24,8 @@ import axios from 'axios';
 import Navbar from './Navbar';
 import { webChallenges } from '../data/webChallenges';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 // Function to submit challenge (real implementation)
 const submitChallenge = async (challengeId, html, css, js, isAutoSubmission = false) => {
   try {

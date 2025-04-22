@@ -4,6 +4,8 @@ import { AppBar, Toolbar, Typography, Button, Box, Container } from '@mui/materi
 import { styled } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 // Create animated components with Framer Motion
 const MotionToolbar = motion(Toolbar);
 const MotionBox = motion(Box);

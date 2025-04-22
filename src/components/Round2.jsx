@@ -10,6 +10,8 @@ import {
 import axios from 'axios';
 import Navbar from './Navbar';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const Round2 = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -51,7 +53,7 @@ const Round2 = () => {
   // Check if round is still enabled
   const checkRoundAccess = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/rounds/access');
+      const response = await axios.get(`${apiUrl}/api/rounds/access`);
       return response.data?.round2?.enabled || false;
     } catch (error) {
       console.error('Error checking round access:', error);
@@ -112,7 +114,7 @@ const Round2 = () => {
   useEffect(() => {
     if (user && step === 'quiz' && selectedLanguage) {
       setLoading(true);
-      axios.get(`http://localhost:5000/api/admin/questions/round2?language=${selectedLanguage}`)
+      axios.get(`${apiUrl}/api/admin/questions/round2?language=${selectedLanguage}`)
         .then(response => {
           console.log(`Round 2 ${selectedLanguage} questions loaded:`, response.data);
           setQuestions(response.data);
@@ -200,7 +202,7 @@ const Round2 = () => {
         total_questions: Math.min(totalQuestions, questions.length)
       });
 
-      const response = await axios.post('http://localhost:5000/api/quiz/result', {
+      const response = await axios.post(`${apiUrl}/api/quiz/result`, {
         user_id: user.id,
         round_number: 2,
         language: selectedLanguage,
@@ -613,7 +615,7 @@ const Round2 = () => {
                   {questions[currentQuestionIndex].questionImage && (
                     <Box sx={{ mb: 3, textAlign: 'center' }}>
                       <img 
-                        src={`http://localhost:5000/${questions[currentQuestionIndex].questionImage}`}
+                        src={`${apiUrl}/${questions[currentQuestionIndex].questionImage}`}
                         alt="Question"
                         style={{ 
                           maxWidth: '100%', 
@@ -652,7 +654,7 @@ const Round2 = () => {
                               {questions[currentQuestionIndex].optionImages && questions[currentQuestionIndex].optionImages[index] && (
                                 <Box sx={{ mt: 1 }}>
                                   <img 
-                                    src={`http://localhost:5000/${questions[currentQuestionIndex].optionImages[index]}`}
+                                    src={`${apiUrl}/${questions[currentQuestionIndex].optionImages[index]}`}
                                     alt={`Option ${index + 1}`}
                                     style={{ 
                                       maxWidth: '100%', 

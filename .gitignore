@@ -89,3 +89,5 @@ dist/
 Thumbs.db
 .directory
 desktop.ini 
+
+.env.production

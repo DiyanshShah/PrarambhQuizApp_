@@ -24,6 +24,8 @@ import { dsaProblems } from '../data/dsaProblems';
 import axios from 'axios';
 import Navbar from './Navbar';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const Round3DSA = () => {
   const navigate = useNavigate();
   const { problemId } = useParams();

@@ -8,6 +8,8 @@ import axios from 'axios';
 import Navbar from './Navbar';
 import { motion } from 'framer-motion';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 // Create animated components
 const MotionContainer = motion(Container);
 const MotionPaper = motion(Paper);
@@ -42,7 +44,7 @@ const Results = ({ isAdmin }) => {
     const fetchResults = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`http://localhost:5000/api/user/${userObj.id}/results`, {
+        const response = await axios.get(`${apiUrl}/api/user/${userObj.id}/results`, {
           params: {
             requesting_user_id: userObj.id
           }

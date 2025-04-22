@@ -11,6 +11,8 @@ import axios from 'axios';
 import Navbar from './Navbar';
 import { motion } from 'framer-motion';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 // Create animated components
 const MotionPaper = motion(Paper);
 const MotionBox = motion(Box);
@@ -100,7 +102,7 @@ const AdminDashboard = () => {
     
     const fetchRoundsAccess = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/rounds/access');
+            const response = await axios.get(`${apiUrl}/api/rounds/access`);
             setRoundsAccess(response.data);
         } catch (error) {
             console.error('Error fetching rounds access:', error);
@@ -117,7 +119,7 @@ const AdminDashboard = () => {
         
         setUpdatingAccess(true);
         try {
-            const response = await axios.post('http://localhost:5000/api/admin/rounds/access', {
+            const response = await axios.post(`${apiUrl}/api/admin/rounds/access`, {
                 admin_user_id: user.id,
                 round_number: roundNumber,
                 is_enabled: enabled
@@ -189,7 +191,7 @@ const AdminDashboard = () => {
             };
             
             // Call the backend API to add the question
-            const response = await axios.post(`http://localhost:5000/api/admin/questions/${language}`, questionData);
+            const response = await axios.post(`${apiUrl}/api/admin/questions/${language}`, questionData);
             
             // Reset form
             setLanguage('');
@@ -287,7 +289,7 @@ const AdminDashboard = () => {
             };
             
             // Call the backend API to add the Round 2 question
-            const response = await axios.post('http://localhost:5000/api/admin/questions/round2', questionData);
+            const response = await axios.post(`${apiUrl}/api/admin/questions/round2`, questionData);
             
             // Reset form
             setRound2Language('');
@@ -341,7 +343,7 @@ const AdminDashboard = () => {
                 language: deleteRound === 3 ? undefined : deleteLanguage
             };
 
-            const response = await axios.post('http://localhost:5000/api/admin/questions/delete', deleteData);
+            const response = await axios.post(`${apiUrl}/api/admin/questions/delete`, deleteData);
             
             // Reset form
             setDeleteQuestionId('');
@@ -375,7 +377,7 @@ const AdminDashboard = () => {
     const submitScore = async (submissionId) => {
         setIsSubmissionScoring(true);
         try {
-            await axios.post(`http://localhost:5000/api/admin/score-round3`, {
+            await axios.post(`${apiUrl}/api/admin/score-round3`, {
                 submissionId,
                 score: submissionScore
             });
@@ -461,7 +463,7 @@ const AdminDashboard = () => {
 
     const fetchRound3Submissions = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/admin/round3-submissions');
+            const response = await axios.get(`${apiUrl}/api/admin/round3-submissions`);
             setRound3Submissions(response.data.submissions);
         } catch (error) {
             console.error('Error fetching Round 3 submissions:', error);
@@ -527,7 +529,7 @@ const AdminDashboard = () => {
             };
             
             // Call the backend API to create the participant
-            const response = await axios.post('http://localhost:5000/api/admin/participants/create', participantData);
+            const response = await axios.post(`${apiUrl}/api/admin/participants/create`, participantData);
             
             // Reset form
             setNewParticipantEnrollment('');

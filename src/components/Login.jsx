@@ -15,6 +15,8 @@ import { styled } from '@mui/material/styles';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 // Animated components using motion.create for framer-motion v12
 const MotionContainer = motion(Container);
 const MotionPaper = motion(Paper);
@@ -80,7 +82,7 @@ const Login = () => {
     setError('');
     
     try {
-      const response = await axios.post('http://localhost:5000/api/login', {
+      const response = await axios.post(`${apiUrl}/api/login`, {
         enrollment_no: enrollmentNo,
         password: password
       });

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from './Navbar';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const ParticipantDashboard = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);

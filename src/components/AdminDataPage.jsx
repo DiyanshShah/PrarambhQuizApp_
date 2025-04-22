@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const Table = ({ title, data }) => {
   if (!data || data.length === 0) return null;
 
@@ -37,7 +39,7 @@ function AdminDataPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/admin/all-data')
+    fetch(`${apiUrl}/api/admin/all-data`)
       .then(res => res.json())
       .then(data => {
         setAdminData(data);

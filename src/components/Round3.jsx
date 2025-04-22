@@ -9,6 +9,8 @@ import {
 import axios from 'axios';
 import Navbar from './Navbar';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const Round3 = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -47,7 +49,7 @@ const Round3 = () => {
   useEffect(() => {
     if (user) {
       setLoading(true);
-      axios.get('http://localhost:5000/api/admin/questions/round3')
+      axios.get(`${apiUrl}/api/admin/questions/round3`)
         .then(response => {
           console.log("Round 3 questions loaded:", response.data);
           setQuestions(response.data);
@@ -176,7 +178,7 @@ const Round3 = () => {
         total_questions: Math.min(totalQuestions, questions.length)
       });
 
-      const response = await axios.post('http://localhost:5000/api/quiz/result', {
+      const response = await axios.post(`${apiUrl}/api/quiz/result`, {
         user_id: user.id,
         round_number: 3,
         language: '', // Round 3 doesn't have a language field

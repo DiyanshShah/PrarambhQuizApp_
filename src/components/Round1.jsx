@@ -11,6 +11,8 @@ import {
 import axios from 'axios';
 import Navbar from './Navbar';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const Round1 = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -116,7 +118,7 @@ const Round1 = () => {
   // Check if round is still enabled
   const checkRoundAccess = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/rounds/access');
+      const response = await axios.get(`${apiUrl}/api/rounds/access`);
       return response.data?.round1?.enabled || false;
     } catch (error) {
       console.error('Error checking round access:', error);
@@ -147,7 +149,7 @@ const Round1 = () => {
   useEffect(() => {
     if (step === 'quiz' && selectedLanguage) {
       setLoading(true);
-      axios.get(`http://localhost:5000/api/admin/questions/${selectedLanguage}`)
+      axios.get(`${apiUrl}/api/admin/questions/${selectedLanguage}`)
         .then(response => {
           setQuestions(response.data);
           setLoading(false);
@@ -262,7 +264,7 @@ const Round1 = () => {
         penalty: penaltyPoints
       });
 
-      const response = await axios.post('http://localhost:5000/api/quiz/result', {
+      const response = await axios.post(`${apiUrl}/api/quiz/result`, {
         user_id: user.id,
         round_number: 1,
         language: selectedLanguage,

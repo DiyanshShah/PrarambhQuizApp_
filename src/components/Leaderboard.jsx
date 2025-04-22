@@ -8,6 +8,8 @@ import {
 import axios from 'axios';
 import Navbar from './Navbar';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const Leaderboard = ({ isAdmin }) => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -64,7 +66,7 @@ const Leaderboard = ({ isAdmin }) => {
       const loggedInUser = JSON.parse(localStorage.getItem('user'));
       
       // Fetch leaderboard data
-      const response = await axios.get('http://localhost:5000/api/leaderboard', {
+      const response = await axios.get(`${apiUrl}/api/leaderboard`, {
         params: {
           requesting_user_id: loggedInUser ? loggedInUser.id : null
         }
