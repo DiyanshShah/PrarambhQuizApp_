@@ -47,7 +47,6 @@ quiz-app/backend/uploads/
 
 # Credentials - Security sensitive files
 admin.json
-participants.json
 predefined_participants.json
 *_credentials.json
 *_secret*.json

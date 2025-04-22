@@ -10,6 +10,9 @@ from werkzeug.utils import secure_filename
 import base64
 import random  # Add import for shuffling questions
 from flask_compress import Compress  # Import Flask-Compress
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 # Enable CORS for all routes with additional options
@@ -36,6 +39,7 @@ os.makedirs(OPTION_IMAGES_FOLDER, exist_ok=True)
 # Database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quiz.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = os.getenv('SECRET_KEY')
 db = SQLAlchemy(app)
 
 # User model
@@ -148,10 +152,10 @@ with app.app_context():
                 admin_data = json.load(file)
                 
                 # Create admin user from file data
-                admin_password = generate_password_hash(admin_data['password'])
+                admin_password = generate_password_hash(os.getenv('ADMIN_PASSWORD'))
                 admin_user = User(
-                    enrollment_no=admin_data['enrollment_no'],
-                    username=admin_data['username'],
+                    enrollment_no=os.getenv('ADMIN_ENROLLMENT'),
+                    username=os.getenv('ADMIN_USERNAME'),
                     password=admin_password,
                     is_admin=True,
                     current_round=3,  # Admin has access to all rounds
@@ -168,10 +172,10 @@ with app.app_context():
     # Create default admin if no admin.json file or error loading it
     if not admin_created:
         print("Warning: No admin.json file found or error loading it. Creating default admin.")
-        admin_password = generate_password_hash('admin')
+        admin_password = generate_password_hash(os.getenv('ADMIN_PASSWORD'))
         admin_user = User(
-            enrollment_no='231260107017',
-            username='admin',
+            enrollment_no=os.getenv('ADMIN_ENROLLMENT'),
+            username=os.getenv('ADMIN_USERNAME'),
             password=admin_password,
             is_admin=True,
             current_round=3,  # Admin has access to all rounds
