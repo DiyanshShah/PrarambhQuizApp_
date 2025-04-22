@@ -11,7 +11,6 @@ import base64
 import random  # Add import for shuffling questions
 from flask_compress import Compress  # Import Flask-Compress
 from sqlalchemy import inspect
-import bcrypt
 
 app = Flask(__name__)
 CORS(app)
@@ -106,7 +105,7 @@ def init_db():
                 db.create_all()
                 
                 # Create admin user
-                admin_password = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                admin_password = generate_password_hash('admin123', method='scrpyt')
                 admin = User(
                     enrollment_no='ADMIN',
                     username='admin',
@@ -132,7 +131,7 @@ def init_db():
                 ]
                 
                 for p in participants:
-                    hashed_pw = bcrypt.hashpw(p["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    hashed_pw = generate_password_hash(p["password"], method='scrypt')
                     participant = User(
                         enrollment_no=p["enrollment_no"],
                         username=p["username"],
@@ -157,7 +156,7 @@ def init_db():
             db.create_all()
             
             # Create admin user
-            admin_password = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            admin_password = generate_password_hash('admin123', method='scrypt')
             admin = User(
                 enrollment_no='ADMIN',
                 username='admin',
@@ -183,7 +182,7 @@ def init_db():
             ]
             
             for p in participants:
-                hashed_pw = bcrypt.hashpw(p["password"].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                hashed_pw = generate_password_hash(p["password"], method='scrypt')
                 participant = User(
                     enrollment_no=p["enrollment_no"],
                     username=p["username"],
@@ -207,6 +206,8 @@ def init_db():
 def login():
     data = request.get_json()
     user = User.query.filter_by(enrollment_no=data['enrollment_no']).first()
+
+    print(data)
     
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({'error': 'Invalid enrollment number or password'}), 401
