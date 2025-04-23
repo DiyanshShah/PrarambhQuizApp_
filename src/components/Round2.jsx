@@ -5,7 +5,7 @@ import {
   Radio, RadioGroup, FormControlLabel, FormControl, 
   CircularProgress, Dialog, DialogTitle, DialogContent, 
   DialogContentText, DialogActions,
-  Alert, Card, CardContent, Grid
+  Alert, Card, CardContent, Grid, Divider
 } from '@mui/material';
 import axios from 'axios';
 import Navbar from './Navbar';
@@ -36,10 +36,8 @@ const Round2 = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [questions, setQuestions] = useState([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [selectedAnswers, setSelectedAnswers] = useState({});
+  const [timeLeft, setTimeLeft] = useState(1200); // 20 minutes (1200 seconds) for all questions
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
@@ -47,8 +45,6 @@ const Round2 = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState('language-select'); // 'language-select', 'quiz', 'intro'
   const [selectedLanguage, setSelectedLanguage] = useState('');
-
-  const totalQuestions = 20;
 
   // Load user from localStorage
   useEffect(() => {
@@ -139,11 +135,14 @@ const Round2 = () => {
         .then(response => {
           console.log(`Round 2 ${selectedLanguage} questions loaded:`, response.data);
           setQuestions(response.data);
+          // Initialize selected answers object with empty values
+          const initialAnswers = {};
+          response.data.forEach((q, index) => {
+            initialAnswers[index] = null;
+          });
+          setSelectedAnswers(initialAnswers);
           setLoading(false);
-          setTimeLeft(60);
-          setCurrentQuestionIndex(0);
-          setScore(0);
-          setSelectedAnswer(null);
+          setTimeLeft(1200); // 20 minutes for all questions
         })
         .catch(error => {
           console.error('Error loading Round 2 questions:', error);
@@ -155,7 +154,7 @@ const Round2 = () => {
     }
   }, [user, step, selectedLanguage]);
 
-  // Timer countdown
+  // Timer countdown for the entire quiz
   useEffect(() => {
     let timer;
     if (step === 'quiz' && questions.length > 0 && timeLeft > 0 && isRoundEnabled) {
@@ -163,8 +162,8 @@ const Round2 = () => {
         setTimeLeft(prevTime => prevTime - 1);
       }, 1000);
     } else if (step === 'quiz' && questions.length > 0 && timeLeft === 0) {
-      // Time's up for current question
-      handleNextQuestion();
+      // Time's up for the entire quiz
+      submitResults(true);
     }
 
     return () => {
@@ -178,49 +177,32 @@ const Round2 = () => {
     setStep('intro');
   };
 
-  // Handle answer selection
-  const handleAnswerSelect = (index) => {
-    setSelectedAnswer(index);
-  };
-
-  // Handle next question or finish quiz
-  const handleNextQuestion = () => {
-    // Check if answer was correct and update score
-    if (selectedAnswer !== null && questions[currentQuestionIndex]) {
-      if (selectedAnswer === questions[currentQuestionIndex].correctAnswer) {
-        setScore(prevScore => prevScore + 1);
-      }
-    }
-    
-    // Move to next question or finish quiz
-    if (currentQuestionIndex < Math.min(totalQuestions - 1, questions.length - 1)) {
-      setCurrentQuestionIndex(prevIndex => prevIndex + 1);
-      setSelectedAnswer(null);
-      setTimeLeft(60);
-    } else {
-      // Quiz completed - submit results
-      submitResults();
-    }
+  // Handle answer selection for a specific question
+  const handleAnswerSelect = (questionIndex, answerIndex) => {
+    setSelectedAnswers(prev => ({
+      ...prev,
+      [questionIndex]: answerIndex
+    }));
   };
 
   // Submit quiz results to backend
   const submitResults = async (isAutoSubmit = false) => {
     setIsSubmitting(true);
     try {
-      // Calculate final score (adding the last answer if selected)
-      let finalScore = score;
-      if (selectedAnswer !== null && 
-          currentQuestionIndex < questions.length && 
-          selectedAnswer === questions[currentQuestionIndex].correctAnswer) {
-        finalScore += 1;
-      }
+      // Calculate total score based on all answers
+      let finalScore = 0;
+      questions.forEach((question, index) => {
+        if (selectedAnswers[index] === question.correctAnswer) {
+          finalScore += 1;
+        }
+      });
 
       console.log("Submitting Round 2 results:", {
         user_id: user.id,
         round_number: 2,
         language: selectedLanguage,
         score: finalScore,
-        total_questions: Math.min(totalQuestions, questions.length)
+        total_questions: questions.length
       });
 
       const response = await axios.post(`${apiUrl}/api/quiz/result`, {
@@ -228,7 +210,7 @@ const Round2 = () => {
         round_number: 2,
         language: selectedLanguage,
         score: finalScore,
-        total_questions: Math.min(totalQuestions, questions.length)
+        total_questions: questions.length
       });
 
       console.log("Round 2 results submitted successfully:", response.data);
@@ -241,7 +223,7 @@ const Round2 = () => {
 
       // Only show completion message if not auto-submitted due to access revocation
       if (!isAutoSubmit) {
-        setDialogMessage(`Quiz completed! Your score: ${finalScore}/${Math.min(totalQuestions, questions.length)}`);
+        setDialogMessage(`Quiz completed! Your score: ${finalScore}/${questions.length}`);
         setDialogOpen(true);
       }
       
@@ -266,6 +248,13 @@ const Round2 = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Format time remaining as MM:SS
+  const formatTimeRemaining = () => {
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
   // Start the quiz after intro
@@ -499,13 +488,13 @@ const Round2 = () => {
                   Instructions:
                 </Typography>
                 <Typography variant="body1" align="left" sx={{ mb: 2 }}>
-                  • You will be presented with a series of image-based coding questions on {selectedLanguage === 'python' ? 'Python' : 'C'}.
+                  • You will be presented with all questions on a single page for ease of navigation.
                 </Typography>
                 <Typography variant="body1" align="left" sx={{ mb: 2 }}>
-                  • You have 60 seconds to answer each question.
+                  • You have 20 minutes to complete all questions.
                 </Typography>
                 <Typography variant="body1" align="left" sx={{ mb: 2 }}>
-                  • Once you move to the next question, you cannot go back.
+                  • You can answer questions in any order and change your answers until you submit.
                 </Typography>
                 <Typography variant="body1" align="left">
                   • Your final score will determine if you qualify for Round 3.
@@ -552,7 +541,7 @@ const Round2 = () => {
     );
   }
 
-  // Quiz Questions UI (the existing quiz UI from the previous code)
+  // Quiz Questions UI (all questions on a single page)
   return (
     <Box sx={{ 
       width: '100%',
@@ -560,192 +549,261 @@ const Round2 = () => {
       backgroundColor: 'background.default',
       display: 'flex',
       flexDirection: 'column',
+      pb: 4
     }}>
-      <Container maxWidth="md" sx={{ mt: 4, flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Paper 
-          elevation={0}
-          sx={{ 
-            p: 6,
-            textAlign: 'center',
-            backgroundColor: 'background.paper',
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'primary.main',
-            mx: 'auto',
-            width: '100%',
+      <Navbar isAdmin={user?.is_admin || false} />
+      
+      {/* Timer and Progress */}
+      <Container maxWidth="lg" sx={{ mt: 2 }}>
+        <Paper
+          elevation={3}
+          sx={{
+            p: 2,
             display: 'flex',
-            flexDirection: 'column',
-            flex: 1
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            mb: 3,
+            backgroundColor: 'primary.main',
+            color: 'white'
           }}
         >
-          {/* Quiz Questions */}
-          {questions.length > 0 ? (
-            <>
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                mb: 3
-              }}>
-                <Typography variant="h6" sx={{ color: 'primary.main' }}>
-                  Question {currentQuestionIndex + 1}/{Math.min(totalQuestions, questions.length)}
-                </Typography>
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1, 
-                  backgroundColor: timeLeft <= 10 ? 'error.dark' : 'primary.dark',
-                  px: 2,
-                  py: 1,
-                  borderRadius: 2
-                }}>
-                  <CircularProgress 
-                    variant="determinate" 
-                    value={(timeLeft / 60) * 100} 
-                    size={30} 
-                    sx={{ 
-                      color: 'primary.light',
-                      '& .MuiCircularProgress-circle': {
-                        transition: 'stroke-dashoffset 0.5s linear',
-                      }
-                    }}
-                  />
-                  <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
-                    {timeLeft}s
-                  </Typography>
-                </Box>
+          <Typography variant="h6">
+            Round 2: {selectedLanguage === 'python' ? 'Python' : 'C'} Quiz
+          </Typography>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            backgroundColor: timeLeft <= 300 ? 'error.dark' : 'primary.dark', // red when less than 5 minutes
+            px: 2,
+            py: 1,
+            borderRadius: 2
+          }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              Time Remaining: {formatTimeRemaining()}
+            </Typography>
+          </Box>
+        </Paper>
+      </Container>
+      
+      <Container maxWidth="lg">
+        {/* Progress summary */}
+        <Paper 
+          elevation={2}
+          sx={{ 
+            p: 3, 
+            mb: 3, 
+            backgroundColor: 'background.paper',
+            borderRadius: 2
+          }}
+        >
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            Your Progress:
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {questions.map((_, index) => (
+              <Box
+                key={index}
+                sx={{
+                  width: 36,
+                  height: 36,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: selectedAnswers[index] !== null ? 'primary.main' : 'grey.300',
+                  color: selectedAnswers[index] !== null ? 'white' : 'text.primary',
+                  borderRadius: '50%',
+                  fontWeight: 'bold'
+                }}
+              >
+                {index + 1}
               </Box>
-
-              {questions[currentQuestionIndex] && (
-                <>
-                  <Typography 
-                    variant="h5" 
-                    sx={{ 
-                      color: 'text.primary', 
-                      mb: 2, 
-                      textAlign: 'left',
-                      fontWeight: 600
-                    }}
-                  >
-                    {questions[currentQuestionIndex].question}
-                  </Typography>
-
-                  {/* Question Image */}
-                  {questions[currentQuestionIndex].questionImage && (
-                    <Box sx={{ mb: 3, textAlign: 'center' }}>
-                      <img 
-                        src={getImageUrl(questions[currentQuestionIndex].questionImage)}
-                        alt="Question"
-                        style={{ 
-                          maxWidth: '100%', 
-                          maxHeight: '300px',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '8px'
-                        }}
-                        onError={(e) => {
-                          console.error("Image failed to load:", questions[currentQuestionIndex].questionImage);
-                          // Try an alternative URL format if the first one fails
-                          const currentSrc = e.target.src;
-                          if (currentSrc.includes('/uploads/round2/')) {
-                            // Try direct path
-                            e.target.src = currentSrc.replace('/uploads/round2/', '/round2/');
-                          } else if (currentSrc.includes(`${apiUrl}/round2/`)) {
-                            // Already tried both formats, show placeholder
-                            e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
+            ))}
+          </Box>
+          
+          <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+            Answered: {Object.values(selectedAnswers).filter(a => a !== null).length} / {questions.length}
+          </Typography>
+        </Paper>
+        
+        {/* All Questions */}
+        {questions.map((question, questionIndex) => (
+          <Paper
+            key={questionIndex}
+            elevation={2}
+            sx={{
+              p: 4,
+              mb: 3,
+              backgroundColor: 'background.paper',
+              borderRadius: 2
+            }}
+          >
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: 'primary.main',
+                mb: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <Box 
+                component="span" 
+                sx={{ 
+                  display: 'inline-flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  backgroundColor: 'primary.main',
+                  color: 'white',
+                  fontWeight: 'bold'
+                }}
+              >
+                {questionIndex + 1}
+              </Box>
+              <span>{question.question}</span>
+            </Typography>
+            
+            {/* Question Image */}
+            {question.questionImage && (
+              <Box sx={{ mb: 3, textAlign: 'center' }}>
+                <img 
+                  src={getImageUrl(question.questionImage)}
+                  alt={`Question ${questionIndex + 1}`}
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '250px',
+                    border: '1px solid rgba(0, 0, 0, 0.1)',
+                    borderRadius: '8px'
+                  }}
+                  onError={(e) => {
+                    console.error(`Image failed to load for question ${questionIndex + 1}:`, question.questionImage);
+                    // Try an alternative URL format if the first one fails
+                    const currentSrc = e.target.src;
+                    if (currentSrc.includes('/uploads/round2/')) {
+                      // Try direct path
+                      e.target.src = currentSrc.replace('/uploads/round2/', '/round2/');
+                    } else if (currentSrc.includes(`${apiUrl}/round2/`)) {
+                      // Already tried both formats, show placeholder
+                      e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
+                    }
+                  }}
+                />
+              </Box>
+            )}
+            
+            {/* Options */}
+            <FormControl component="fieldset" sx={{ width: '100%', mb: 1 }}>
+              <RadioGroup 
+                value={selectedAnswers[questionIndex] !== null ? selectedAnswers[questionIndex].toString() : ''} 
+                onChange={(e) => handleAnswerSelect(questionIndex, parseInt(e.target.value))}
+              >
+                <Grid container spacing={2}>
+                  {question.options.map((option, optionIndex) => (
+                    <Grid item xs={12} md={question.optionImages && question.optionImages[optionIndex] ? 6 : 12} key={optionIndex}>
+                      <FormControlLabel 
+                        value={optionIndex.toString()} 
+                        control={
+                          <Radio 
+                            sx={{
+                              color: 'text.secondary',
+                              '&.Mui-checked': {
+                                color: 'primary.main',
+                              }
+                            }}
+                          />
+                        } 
+                        label={
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                            <Typography sx={{ color: 'text.primary', fontSize: '1rem' }}>
+                              {option}
+                            </Typography>
+                            {question.optionImages && question.optionImages[optionIndex] && (
+                              <Box sx={{ mt: 1, width: '100%', textAlign: 'center' }}>
+                                <img 
+                                  src={getImageUrl(question.optionImages[optionIndex])}
+                                  alt={`Option ${optionIndex + 1}`}
+                                  style={{ 
+                                    maxWidth: '100%', 
+                                    maxHeight: '150px',
+                                    border: '1px solid rgba(0, 0, 0, 0.1)',
+                                    borderRadius: '4px'
+                                  }}
+                                  onError={(e) => {
+                                    console.error(`Option image failed to load for question ${questionIndex + 1}, option ${optionIndex + 1}:`, question.optionImages[optionIndex]);
+                                    const currentSrc = e.target.src;
+                                    if (currentSrc.includes('/uploads/round2/')) {
+                                      // Try direct path
+                                      e.target.src = currentSrc.replace('/uploads/round2/', '/round2/');
+                                    } else if (currentSrc.includes(`${apiUrl}/round2/`)) {
+                                      // Already tried both formats, show placeholder
+                                      e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
+                                    }
+                                  }}
+                                />
+                              </Box>
+                            )}
+                          </Box>
+                        }
+                        sx={{
+                          margin: '5px 0',
+                          padding: '10px 16px',
+                          borderRadius: '8px',
+                          width: '100%',
+                          '&:hover': {
+                            backgroundColor: 'rgba(0, 0, 0, 0.04)'
                           }
                         }}
                       />
-                    </Box>
-                  )}
-
-                  <FormControl component="fieldset" sx={{ width: '100%', mb: 4 }}>
-                    <RadioGroup 
-                      value={selectedAnswer !== null ? selectedAnswer.toString() : ''} 
-                      onChange={(e) => handleAnswerSelect(parseInt(e.target.value))}
-                    >
-                      {questions[currentQuestionIndex].options.map((option, index) => (
-                        <FormControlLabel 
-                          key={index} 
-                          value={index.toString()} 
-                          control={
-                            <Radio 
-                              sx={{
-                                color: 'text.secondary',
-                                '&.Mui-checked': {
-                                  color: 'primary.main',
-                                }
-                              }}
-                            />
-                          } 
-                          label={
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                              <Typography sx={{ color: 'text.primary', fontSize: '1.1rem' }}>
-                                {option}
-                              </Typography>
-                              {questions[currentQuestionIndex].optionImages && questions[currentQuestionIndex].optionImages[index] && (
-                                <Box sx={{ mt: 1 }}>
-                                  <img 
-                                    src={getImageUrl(questions[currentQuestionIndex].optionImages[index])}
-                                    alt={`Option ${index + 1}`}
-                                    style={{ 
-                                      maxWidth: '100%', 
-                                      maxHeight: '150px',
-                                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                                      borderRadius: '4px'
-                                    }}
-                                    onError={(e) => {
-                                      console.error("Option image failed to load:", questions[currentQuestionIndex].optionImages[index]);
-                                      const currentSrc = e.target.src;
-                                      if (currentSrc.includes('/uploads/round2/')) {
-                                        // Try direct path
-                                        e.target.src = currentSrc.replace('/uploads/round2/', '/round2/');
-                                      } else if (currentSrc.includes(`${apiUrl}/round2/`)) {
-                                        // Already tried both formats, show placeholder
-                                        e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWltYWdlLW9mZiI+PHBhdGggZD0iTTIwLjc0IDIxSE0uMjYgQS4yNCkgTDMgMy41MSBMNi43MSA3LjIxYTMgMyAwIDAgMSAuMjkgNCBsLS43MS43MSBhMSAxIDAgMCAwIDAgMS40MSBhLS43IDEgMCAwIDAgMS41MyAtLjExIGw0LjQgNC40MCBMMyAxOVoiLz48cGF0aCBkPSJNMTguMDUgMTNoMS45OWEuMi4yIDAgMCAxIC4yLjJ2Mi4yNSIvPjxwYXRoIGQ9Ik0xNC42OSA5LjYgTDExLjcyIDYuNjIgYTUgNSAwIDAgMC03LjAyIC4wMZYv3JHRoIG9mIFEgIiA+ID48L3BhdGg+PHBhdGggZD0iTTAgN2g5bTYgMGg5Ii8+PHBhdGggZD0iTTEgMWgyMXYyMkgxeiIvPjwvc3ZnPg==";
-                                      }
-                                    }}
-                                  />
-                                </Box>
-                              )}
-                            </Box>
-                          }
-                          sx={{
-                            margin: '10px 0',
-                            padding: '10px 16px',
-                            borderRadius: '8px',
-                            '&:hover': {
-                              backgroundColor: 'rgba(0, 0, 0, 0.04)'
-                            }
-                          }}
-                        />
-                      ))}
-                    </RadioGroup>
-                  </FormControl>
-
-                  <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'center' }}>
-                    <Button 
-                      variant="contained" 
-                      onClick={handleNextQuestion}
-                      disabled={selectedAnswer === null}
-                      sx={{ 
-                        py: 1.5, 
-                        px: 5, 
-                        fontSize: '1rem',
-                        borderRadius: '8px'
-                      }}
-                    >
-                      {currentQuestionIndex < Math.min(totalQuestions - 1, questions.length - 1) ? 'Next Question' : 'Finish Quiz'}
-                    </Button>
-                  </Box>
-                </>
-              )}
-            </>
-          ) : (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-              <CircularProgress />
-            </Box>
-          )}
-        </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </RadioGroup>
+            </FormControl>
+            <Divider sx={{ mt: 2, mb: 0 }} />
+          </Paper>
+        ))}
+        
+        {/* Submit Button */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          mt: 4, 
+          mb: 4,
+          position: 'sticky',
+          bottom: 20,
+          zIndex: 5
+        }}>
+          <Button 
+            variant="contained" 
+            color="primary"
+            size="large"
+            onClick={() => submitResults(false)}
+            disabled={isSubmitting}
+            sx={{ 
+              py: 1.5, 
+              px: 8, 
+              fontSize: '1.1rem',
+              borderRadius: '8px',
+              boxShadow: 3
+            }}
+          >
+            {isSubmitting ? (
+              <>
+                <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
+                Submitting...
+              </>
+            ) : 'Submit Quiz'}
+          </Button>
+        </Box>
       </Container>
 
       {/* Dialog for messages */}
