@@ -455,6 +455,12 @@ def save_quiz_result():
             # Handle Round 2 completion timestamp
             if data['round_number'] == 2:
                 user.round2_completed_at = completion_time
+                
+                # Directly qualify users for Round 3 if they score at least 70%
+                high_score_threshold = data['total_questions'] * 0.7  # 70% threshold
+                if total_score >= high_score_threshold:
+                    user.qualified_for_round3 = True
+                    print(f"User {user.username} directly qualified for Round 3 with high score: {total_score}/{data['total_questions']}")
         
         # Commit changes to the database
         db.session.commit()
@@ -1174,43 +1180,61 @@ def get_questions(language):
 
 @app.route('/api/user/<int:user_id>', methods=['GET'])
 def get_user(user_id):
-    # Check if user exists
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-    
-    # Get the requesting user from the query parameter
-    requesting_user_id = request.args.get('requesting_user_id')
-    is_admin = False
-    
-    if requesting_user_id:
-        try:
-            requesting_user_id = int(requesting_user_id)
-            requesting_user = User.query.get(requesting_user_id)
-            if requesting_user and requesting_user.is_admin:
-                is_admin = True
-        except (ValueError, TypeError):
-            # Invalid requesting_user_id, treat as non-admin
-            pass
-    
-    response_data = {
-        'id': user.id,
-        'username': user.username,
-        'enrollment_no': user.enrollment_no,
-        'is_admin': user.is_admin,
-        'current_round': user.current_round,
-        'round3_track': user.round3_track,
-        'total_score': user.total_score,
-        'registered_at': user.registered_at.isoformat() if user.registered_at else None
-    }
-    
-    # Only include Round 3 qualification for admin or the user themselves
-    if is_admin or (requesting_user_id and requesting_user_id == user_id):
-        response_data['qualified_for_round3'] = user.qualified_for_round3
-    else:
-        response_data['qualified_for_round3'] = False
-    
-    return jsonify(response_data)
+    try:
+        # Check if user exists
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({
+                'error': 'User not found',
+                'id': user_id,
+                'current_round': 1,  # Default to round 1 if user not found
+                'qualified_for_round3': False
+            }), 200  # Return 200 instead of 404 to avoid frontend errors
+        
+        # Get the requesting user from the query parameter
+        requesting_user_id = request.args.get('requesting_user_id')
+        is_admin = False
+        
+        if requesting_user_id:
+            try:
+                requesting_user_id = int(requesting_user_id)
+                requesting_user = User.query.get(requesting_user_id)
+                if requesting_user and requesting_user.is_admin:
+                    is_admin = True
+            except (ValueError, TypeError):
+                # Invalid requesting_user_id, treat as non-admin
+                pass
+        
+        response_data = {
+            'id': user.id,
+            'username': user.username,
+            'enrollment_no': user.enrollment_no,
+            'is_admin': user.is_admin,
+            'current_round': user.current_round if user.current_round is not None else 1,  # Default to 1 if None
+            'round3_track': user.round3_track,
+            'total_score': user.total_score if user.total_score is not None else 0,  # Default to 0 if None
+            'registered_at': user.registered_at.isoformat() if user.registered_at else None
+        }
+        
+        # Only include Round 3 qualification for admin or the user themselves
+        if is_admin or (requesting_user_id and requesting_user_id == user_id):
+            response_data['qualified_for_round3'] = user.qualified_for_round3 if user.qualified_for_round3 is not None else False
+        else:
+            response_data['qualified_for_round3'] = False
+        
+        return jsonify(response_data)
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error fetching user data: {str(e)}")
+        print(f"Traceback: {error_traceback}")
+        # Return a default response instead of an error
+        return jsonify({
+            'id': user_id,
+            'current_round': 1,
+            'qualified_for_round3': False,
+            'error': f'Failed to fetch user data: {str(e)}'
+        }), 200
 
 @app.route('/api/debug/set_user_round/<int:user_id>/<int:round_number>', methods=['GET'])
 @app.route('/api/debug/set_user_round/<int:user_id>/<int:round_number>/<string:track>', methods=['GET'])
@@ -1296,6 +1320,17 @@ def serve_round2_files(subfolder, filename):
     if os.path.exists(direct_full_path):
         print(f"File found in direct round2 path: {direct_full_path}")
         return send_from_directory(direct_path, filename)
+    
+    # Try with case-insensitive filename matching
+    try:
+        if os.path.exists(direct_path):
+            # Check all files in the directory with case-insensitive comparison
+            for file in os.listdir(direct_path):
+                if file.lower() == filename.lower():
+                    print(f"File found with case-insensitive match: {file}")
+                    return send_from_directory(direct_path, file)
+    except Exception as e:
+        print(f"Error during case-insensitive search: {str(e)}")
     
     print(f"File not found in direct round2 path: {direct_full_path}")
     
@@ -1593,7 +1628,11 @@ def get_user_round3_submissions():
         
         # Validate parameters
         if not user_id:
-            return jsonify({'error': 'Missing user_id parameter'}), 400
+            return jsonify({
+                'submissions': [],
+                'count': 0,
+                'message': 'Missing user_id parameter'
+            }), 200
             
         # Optional track type filter
         query = Round3Submission.query.filter_by(user_id=user_id)
@@ -1627,7 +1666,11 @@ def get_user_round3_submissions():
         error_traceback = traceback.format_exc()
         print(f"Error fetching Round 3 submissions: {str(e)}")
         print(f"Traceback: {error_traceback}")
-        return jsonify({'error': f'Failed to fetch Round 3 submissions: {str(e)}'}), 500
+        return jsonify({
+            'submissions': [],
+            'count': 0,
+            'error': f'Failed to fetch Round 3 submissions: {str(e)}'
+        }), 200 # Return 200 with empty data instead of error
 
 @app.route('/api/round3/check-challenge', methods=['GET'])
 def check_round3_challenge():

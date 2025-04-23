@@ -1,7 +1,7 @@
 [
     {
       "id": 1,
-      "question": "What is something",
+      "question": "",
       "questionImage": "round2/C/1/P.png",
       "options": [
         "option 1",
@@ -20,7 +20,7 @@
 
     {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/2/P.png",
         "options": [
           "option 1",
@@ -39,7 +39,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/3/P.png",
         "options": [
           "option 1",
@@ -58,7 +58,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/4/P.png",
         "options": [
           "option 1",
@@ -77,7 +77,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/5/P.png",
         "options": [
           "option 1",
@@ -96,7 +96,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/6/P.png",
         "options": [
           "option 1",
@@ -115,7 +115,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/7/P.png",
         "options": [
           "option 1",
@@ -134,7 +134,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/8/P.png",
         "options": [
           "option 1",
@@ -153,7 +153,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/9/P.png",
         "options": [
           "option 1",
@@ -172,7 +172,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/C/10/P.png",
         "options": [
           "option 1",

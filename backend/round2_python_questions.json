@@ -1,7 +1,7 @@
 [
     {
       "id": 1,
-      "question": "What is something",
+      "question": "",
       "questionImage": "round2/py/1/P1.png",
       "options": [
         "option 1",
@@ -20,7 +20,7 @@
 
     {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/2/P2.png",
         "options": [
           "option 1",
@@ -32,14 +32,14 @@
           "round2/py/2/O1.png",
           "round2/py/2/O2.png",
           "round2/py/2/O3.png",
-          "round2/py/2/o4.png"
+          "round2/py/2/O4.png"
         ],
         "correctAnswer": 2
       },
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/3/P3.png",
         "options": [
           "option 1",
@@ -58,7 +58,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/4/P4.png",
         "options": [
           "option 1",
@@ -77,7 +77,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/5/P.png",
         "options": [
           "option 1",
@@ -96,7 +96,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/6/P.png",
         "options": [
           "option 1",
@@ -115,7 +115,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/7/P.png",
         "options": [
           "option 1",
@@ -134,7 +134,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/8/P.png",
         "options": [
           "option 1",
@@ -153,7 +153,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/9/P.png",
         "options": [
           "option 1",
@@ -172,7 +172,7 @@
 
       {
         "id": 1,
-        "question": "What is something",
+        "question": "",
         "questionImage": "round2/py/10/P.png",
         "options": [
           "option 1",
